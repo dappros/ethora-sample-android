@@ -1,1 +1,1 @@
-# Ethora Sample App ProGuard rules
+# Sample app ProGuard rules
