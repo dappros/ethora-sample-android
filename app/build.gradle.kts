@@ -143,7 +143,9 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-    implementation(project(":ethora-component"))
+    // Published SDK artifact via JitPack (repo declared in settings.gradle.kts).
+    // See https://github.com/dappros/ethora-sdk-android/releases for tags.
+    implementation("com.github.dappros.ethora-sdk-android:ethora-component:v1.0.21")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")
