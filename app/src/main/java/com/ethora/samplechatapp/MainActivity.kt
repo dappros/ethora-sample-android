@@ -191,6 +191,7 @@ class MainActivity : ComponentActivity() {
             }
             val signatures: Array<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val si = info.signingInfo
+                    ?: error("signingInfo was null on API ${Build.VERSION.SDK_INT}")
                 if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
             } else {
                 @Suppress("DEPRECATION")
