@@ -145,7 +145,16 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // Published SDK artifact via JitPack (repo declared in settings.gradle.kts).
     // See https://github.com/dappros/ethora-sdk-android/releases for tags.
-    implementation("com.github.dappros.ethora-sdk-android:ethora-component:v1.0.21")
+    //
+    // NOTE: Use the single-artifact root coordinate, NOT the multi-module
+    // form shown in the SDK README. The SDK's Gradle config has two
+    // publications (root project + :ethora-component subproject) that
+    // collide on 'com.github.dappros:ethora-sdk-android:<version>', and
+    // JitPack only publishes the root one — the
+    // 'com.github.dappros.ethora-sdk-android:ethora-component:<version>'
+    // coordinate the README promises 404s. Tracked SDK-side; revisit
+    // once the duplicate-publication warning in the build log is fixed.
+    implementation("com.github.dappros:ethora-sdk-android:v1.0.21")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")
