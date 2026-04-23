@@ -72,10 +72,12 @@ val gitBranch: String = runCatching {
         ?: "unknown"
 }.getOrDefault("unknown")
 
-val buildTimestamp: String = java.time.format.DateTimeFormatter
-    .ofPattern("yy.MM.dd.HH:mm")
-    .withZone(java.time.ZoneOffset.UTC)
-    .format(java.time.Instant.now())
+// SimpleDateFormat + Date instead of java.time because the Gradle 8.9
+// Kotlin DSL compilation classpath doesn't always expose java.time
+// (seen on macOS/aarch64 with JBR 17 shipped in Android Studio).
+val buildTimestamp: String = java.text.SimpleDateFormat("yy.MM.dd.HH:mm")
+    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+    .format(java.util.Date())
 
 android {
     namespace = "com.ethora.samplechatapp"
