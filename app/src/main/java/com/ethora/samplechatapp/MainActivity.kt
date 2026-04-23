@@ -30,7 +30,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -575,20 +575,22 @@ private fun SetupTab(
  */
 @Composable
 private fun TabSlot(visible: Boolean, content: @Composable () -> Unit) {
+    // Three TabSlots are stacked in a Box at fillMaxSize. Box hit-testing
+    // picks the topmost child (by draw order, i.e. the last-composed one)
+    // regardless of visual transparency. Without zIndex, whichever tab
+    // happens to be composed last always caught taps — the visible tab
+    // underneath was completely unresponsive.
+    //
+    // zIndex(1f) lifts the active tab above the inactive ones so hit
+    // testing goes to the visible tab. Inactive tabs stay in composition
+    // (SDK clients / scroll state preserved) but are below the visible
+    // one and drawn at alpha 0, so they render nothing and receive no
+    // events.
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .zIndex(if (visible) 1f else 0f)
             .graphicsLayer(alpha = if (visible) 1f else 0f)
-            .then(
-                if (visible) Modifier
-                else Modifier.pointerInput(Unit) {
-                    // Swallow taps/drags while invisible so the hidden
-                    // tab can't steal clicks from the active overlay.
-                    awaitPointerEventScope {
-                        while (true) awaitPointerEvent()
-                    }
-                }
-            )
     ) {
         content()
     }
