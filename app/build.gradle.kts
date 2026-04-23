@@ -202,25 +202,29 @@ dependencies {
     // coordinate the README promises 404s. Tracked SDK-side; revisit
     // once the duplicate-publication warning in the build log is fixed.
     //
-    // tf-dev pin: commit 73ccb7b on ethora-sdk-android/tf-dev — builds on
-    // ee454c3 (diagnostics + BIND fix + LogStore buffer) with three
-    // follow-up fixes:
+    // tf-dev pin: commit b0e0393 on ethora-sdk-android/tf-dev — the
+    // SDK-side follow-up stack delivered on 2026-04-23:
     //
-    //   5645139  publish: drop duplicate root publication so the real
-    //            AAR is served at com.github.dappros:ethora-sdk-android
-    //            instead of a pom-only proxy that clobbered itself.
     //   0004a7c  chat-ui: XMPPClientRegistry process-wide cache keyed
     //            by user — eliminates the dispose-remount-race that
     //            spawned multiple XMPPClient instances and caused
     //            stream:error not-authorized + 'Broken pipe' storms.
+    //   9b8126f  registry: correct nullability (XMPPSettings?) + dns
+    //            override value type (Map<String,String>?).
     //   73ccb7b  xmpp: drop bogus wsUrl xmlns on outgoing <data> —
-    //            aligns with typing/media/receipt code paths which
-    //            already emit <data> without the transport URL stuffed
-    //            into its xmlns attribute.
-    //
-    // Bumping this SHA also invalidates Gradle's cache entry from the
-    // previous pin and forces a fresh fetch from JitPack.
-    implementation("com.github.dappros:ethora-sdk-android:73ccb7b")
+    //            aligns with typing/media/receipt paths that already
+    //            emit <data> without the transport URL as namespace.
+    //   b11ae20  publish: revert to v1.0.21 coordinate layout — the
+    //            tf-dev 'drop root publication' and 'split into
+    //            distinct coords' experiments both regressed JitPack's
+    //            artifact discovery. JitPack only exposes one coord
+    //            per repo, so the v1.0.21 collision-and-overwrite
+    //            pattern (root's pom-only output is overwritten by
+    //            :ethora-component's AAR bundle) is the only factoring
+    //            that actually ships a working artifact.
+    //   b0e0393  chore: empty commit to retrigger JitPack after a
+    //            container-upload timeout on b11ae20.
+    implementation("com.github.dappros:ethora-sdk-android:b0e0393")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")
