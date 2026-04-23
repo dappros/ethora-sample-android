@@ -50,6 +50,33 @@ fun envOrDefault(vararg keys: String, default: String = ""): String {
     return default
 }
 
+// Git SHA + build time — stamped into the first log line on startup
+// so bug reports and pasted logs carry the exact build they came from.
+val gitShortSha: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+val gitBranch: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+val buildTimestamp: String = java.time.format.DateTimeFormatter
+    .ofPattern("yy.MM.dd.HH:mm")
+    .withZone(java.time.ZoneOffset.UTC)
+    .format(java.time.Instant.now())
+
 android {
     namespace = "com.ethora.samplechatapp"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -67,6 +94,9 @@ android {
             useSupportLibrary = true
         }
 
+        buildConfigField("String", "SAMPLE_GIT_SHA", "\"${gitShortSha}\"")
+        buildConfigField("String", "SAMPLE_GIT_BRANCH", "\"${gitBranch}\"")
+        buildConfigField("String", "SAMPLE_BUILD_TIME", "\"${buildTimestamp}\"")
         buildConfigField("String", "ETHORA_APP_ID", "\"${envOrDefault("ETHORA_APP_ID", "APP_ID", default = "CHANGE_ME_APP_ID")}\"")
         buildConfigField("String", "ETHORA_APP_TOKEN", "\"${envOrDefault("ETHORA_APP_TOKEN", "APP_TOKEN", default = "")}\"")
         buildConfigField("String", "ETHORA_API_BASE_URL", "\"${envOrDefault("ETHORA_API_BASE_URL", "API_BASE_URL", default = "CHANGE_ME_API_BASE_URL")}\"")
@@ -157,7 +187,14 @@ dependencies {
     // 'com.github.dappros.ethora-sdk-android:ethora-component:<version>'
     // coordinate the README promises 404s. Tracked SDK-side; revisit
     // once the duplicate-publication warning in the build log is fixed.
-    implementation("com.github.dappros:ethora-sdk-android:v1.0.21")
+    //
+    // tf-dev pin: commit 748f571 on ethora-sdk-android/tf-dev — relaxes
+    // BIND-result detection and surfaces bind state to LogStore so the
+    // 'Send button grey because ConnectionStore stuck at CONNECTING'
+    // issue can be diagnosed. Switch back to a released 'v1.0.x' tag
+    // once tf-dev's findings land on main. JitPack builds this lazily
+    // on first request; first sync may take a few minutes.
+    implementation("com.github.dappros:ethora-sdk-android:748f571")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")

@@ -258,6 +258,20 @@ private fun SampleChatApp() {
     val unreadTotal = remember(rooms) { rooms.sumOf { it.unreadMessages } }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
+    // First-launch build stamp so every pasted log dump identifies the
+    // exact build. Format: "<short sha> @ <YY.MM.DD.HH:mm UTC> on <branch>".
+    // The SDK version is the JitPack coordinate pinned in app/build.gradle.kts.
+    LaunchedEffect(Unit) {
+        logs.add(
+            0,
+            LogLine.info(
+                "sample-chat-app build=${BuildConfig.SAMPLE_GIT_SHA} " +
+                    "@${BuildConfig.SAMPLE_BUILD_TIME}UTC " +
+                    "branch=${BuildConfig.SAMPLE_GIT_BRANCH}"
+            )
+        )
+    }
+
     LaunchedEffect(rooms.size) {
         logs.add(0, LogLine.info("Rooms updated: ${rooms.size}"))
     }
