@@ -1,7 +1,10 @@
 [versions]
 # Toolchain — keep aligned with root build.gradle.kts plugin versions
 # and gradle/wrapper/gradle-wrapper.properties (Gradle 8.9).
-agp = "8.5.2"
+# AGP 8.6.1 officially supports compileSdk = 35 (8.5.2 was only tested
+# up to 34 and needed android.suppressUnsupportedCompileSdk to silence
+# its warning — now cleaned up in gradle.properties).
+agp = "8.6.1"
 kotlin = "1.9.22"
 # Compose Compiler must match the Kotlin version exactly.
 # See https://developer.android.com/jetpack/androidx/releases/compose-kotlin

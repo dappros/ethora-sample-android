@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.application") version "8.5.2" apply false
+    id("com.android.application") version "8.6.1" apply false
     id("org.jetbrains.kotlin.android") version "1.9.22" apply false
     // Registered with a version (and apply false) so that app/build.gradle.kts
     // can refer to it by id alone and apply it conditionally at runtime via
