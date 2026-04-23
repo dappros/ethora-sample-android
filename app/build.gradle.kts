@@ -202,13 +202,16 @@ dependencies {
     // coordinate the README promises 404s. Tracked SDK-side; revisit
     // once the duplicate-publication warning in the build log is fixed.
     //
-    // tf-dev pin: commit 748f571 on ethora-sdk-android/tf-dev — relaxes
-    // BIND-result detection and surfaces bind state to LogStore so the
-    // 'Send button grey because ConnectionStore stuck at CONNECTING'
-    // issue can be diagnosed. Switch back to a released 'v1.0.x' tag
-    // once tf-dev's findings land on main. JitPack builds this lazily
-    // on first request; first sync may take a few minutes.
-    implementation("com.github.dappros:ethora-sdk-android:748f571")
+    // tf-dev pin: commit ee454c3 on ethora-sdk-android/tf-dev — builds on
+    // 748f571 (relaxed BIND-result detection + LogStore buffer 2000) by
+    // adding (a) a self-identifying init log so 'Logs' tab instantly
+    // shows whether tf-dev SDK is loaded vs a stale cached AAR; (b)
+    // per-frame receive logging at WebSocketListener.onMessage, before
+    // handleIncomingStanza, to distinguish 'server never replied' vs
+    // 'handleIncomingStanza swallowed it'; (c) onOpen/onClosing/onClosed/
+    // onFailure pushed to LogStore. JitPack rebuilds lazily on first
+    // request — bumping this SHA also forces a fresh Gradle fetch.
+    implementation("com.github.dappros:ethora-sdk-android:ee454c3")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")
