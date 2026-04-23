@@ -852,14 +852,41 @@ private class PlaygroundSessionState {
     companion object {
         private const val PREFS_NAME = "sdk_playground"
         private const val KEY_JSON = "setup_json"
+        private const val KEY_SCHEMA_VERSION = "schema_version"
+
+        /**
+         * Bump whenever the set or semantics of PlaygroundSessionState
+         * defaults changes — e.g. a new BuildConfig-backed field is added,
+         * an existing default changes, or a field is renamed.
+         *
+         * On load(), if the persisted schema doesn't match the current one,
+         * the saved JSON is discarded and the mutableStateOf defaults
+         * (which now read from BuildConfig.*) take effect. This means a
+         * new build produced by @ethora/setup isn't silently overwritten
+         * by stale JSON from a previous install, while a developer's own
+         * edits still survive app restarts within the same schema.
+         *
+         * History:
+         *   1 — initial (pre-BuildConfig wiring)
+         *   2 — added ETHORA_APP_TOKEN / ETHORA_USER_EMAIL /
+         *       ETHORA_USER_PASSWORD; every default now reads from
+         *       BuildConfig.*
+         */
+        private const val CURRENT_SCHEMA_VERSION = 2
 
         fun load(context: Context): PlaygroundSessionState {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val savedJson = prefs.getString(KEY_JSON, null)
             val state = PlaygroundSessionState()
-            if (!savedJson.isNullOrBlank()) {
-                kotlin.runCatching { state.applyJson(savedJson) }
+            val savedSchema = prefs.getInt(KEY_SCHEMA_VERSION, 0)
+            if (savedSchema == CURRENT_SCHEMA_VERSION) {
+                val savedJson = prefs.getString(KEY_JSON, null)
+                if (!savedJson.isNullOrBlank()) {
+                    kotlin.runCatching { state.applyJson(savedJson) }
+                }
             }
+            // Stale-schema path intentionally falls through to BuildConfig
+            // defaults without touching prefs — the first save() will
+            // rewrite KEY_JSON + KEY_SCHEMA_VERSION together.
             state.xmppConference = state.normalizedConferenceDomain()
             return state
         }
@@ -867,6 +894,7 @@ private class PlaygroundSessionState {
         fun save(context: Context, state: PlaygroundSessionState) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
+                .putInt(KEY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
                 .putString(KEY_JSON, state.toJson())
                 .apply()
         }
