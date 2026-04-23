@@ -74,6 +74,8 @@ android {
         buildConfigField("String", "ETHORA_APP_TOKEN", "\"${envOrDefault("ETHORA_APP_TOKEN", "APP_TOKEN", default = "")}\"")
         buildConfigField("String", "ETHORA_API_BASE_URL", "\"${envOrDefault("ETHORA_API_BASE_URL", "API_BASE_URL", default = "")}\"")
         buildConfigField("String", "ETHORA_USER_JWT", "\"${envOrDefault("ETHORA_USER_JWT", "USER_TOKEN", default = "")}\"")
+        buildConfigField("String", "ETHORA_USER_EMAIL", "\"${envOrDefault("ETHORA_USER_EMAIL", "USER_EMAIL", default = "")}\"")
+        buildConfigField("String", "ETHORA_USER_PASSWORD", "\"${envOrDefault("ETHORA_USER_PASSWORD", "USER_PASSWORD", default = "")}\"")
         buildConfigField("String", "ETHORA_ROOM_JID", "\"${envOrDefault("ETHORA_ROOM_JID", "ROOM_JID", default = "")}\"")
         buildConfigField("String", "ETHORA_XMPP_SERVER_URL", "\"${envOrDefault("ETHORA_XMPP_SERVER_URL", "XMPP_SERVER_URL", default = "")}\"")
         buildConfigField("String", "ETHORA_XMPP_HOST", "\"${envOrDefault("ETHORA_XMPP_HOST", "XMPP_HOST", default = "")}\"")
