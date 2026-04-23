@@ -75,10 +75,24 @@ val gitBranch: String = runCatching {
         ?: "unknown"
 }.getOrDefault("unknown")
 
-val buildTimestamp: String = java.time.format.DateTimeFormatter
-    .ofPattern("yy.MM.dd.HH:mm")
-    .withZone(java.time.ZoneOffset.UTC)
-    .format(java.time.Instant.now())
+// Sidestep `java.*` package lookups entirely — Gradle's `java` plugin
+// extension object is in scope and shadows the `java` package name in
+// this build script, so even `java.text.*` / `java.util.*` fail to
+// resolve. Use the commit's own author date via `git log`, which is
+// also more meaningful (it pins to the commit, not to the rebuild
+// wall-clock time). Format: YY.MM.DD.HH:mm in UTC.
+val buildTimestamp: String = runCatching {
+    val proc = ProcessBuilder(
+        "git", "log", "-1", "--format=%cd", "--date=format-local:%y.%m.%d.%H:%M"
+    )
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .also { it.environment()["TZ"] = "UTC" }
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
 
 android {
     namespace = "com.ethora.samplechatapp"
