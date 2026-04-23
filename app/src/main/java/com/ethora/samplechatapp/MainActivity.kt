@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -637,6 +640,7 @@ private fun ChatTab(session: PlaygroundSessionState) {
 private fun LogsTab(logs: MutableList<LogLine>) {
     var query by remember { mutableStateOf("") }
     val sdkLogs by LogStore.logs.collectAsState()
+    val clipboard = LocalClipboardManager.current
     val merged = remember(logs.size, sdkLogs.size) {
         val local = logs.map { "${it.time} [${it.level}] ${it.message}" }
         val sdk = sdkLogs.map { "${it.timestamp} [${it.type}] [${it.tag}] ${it.message}" }
@@ -653,18 +657,33 @@ private fun LogsTab(logs: MutableList<LogLine>) {
             label = { Text("Filter logs") },
             modifier = Modifier.fillMaxWidth()
         )
-        androidx.compose.material3.TextButton(onClick = {
-            logs.clear()
-            logs.add(0, LogLine.info("Logs cleared."))
-            LogStore.clear()
-        }) { Text("Clear") }
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(filtered.size) { idx ->
-                val line = filtered[idx]
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodySmall
-                )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.TextButton(onClick = {
+                logs.clear()
+                logs.add(0, LogLine.info("Logs cleared."))
+                LogStore.clear()
+            }) { Text("Clear") }
+            androidx.compose.material3.TextButton(onClick = {
+                // Copy the current filtered view to the system clipboard
+                // so developers can paste logs into a bug report without
+                // fiddling with long-press selection on every line.
+                val payload = filtered.joinToString("\n")
+                clipboard.setText(AnnotatedString(payload))
+                logs.add(0, LogLine.success("Copied ${filtered.size} log line(s) to clipboard"))
+            }) { Text("Copy all") }
+        }
+        // SelectionContainer turns all descendant Text nodes into
+        // selectable text — long-press to start a selection, drag handles
+        // to extend, and the standard Android copy/share sheet appears.
+        SelectionContainer(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(filtered.size) { idx ->
+                    val line = filtered[idx]
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
