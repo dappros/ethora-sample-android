@@ -20,11 +20,15 @@ The setup tool creates your Ethora account, provisions test users, and writes co
 ```kotlin
 buildConfigField("String", "ETHORA_APP_ID", "\"your-app-id\"")
 buildConfigField("String", "ETHORA_APP_TOKEN", "\"your-app-token\"")
+buildConfigField("String", "ETHORA_USER_JWT", "\"your-user-jwt\"")
 buildConfigField("String", "ETHORA_API_BASE_URL", "\"https://api.your-server.com\"")
 buildConfigField("String", "ETHORA_XMPP_SERVER_URL", "\"wss://xmpp.your-server.com/ws\"")
 buildConfigField("String", "ETHORA_XMPP_HOST", "\"xmpp.your-server.com\"")
 buildConfigField("String", "ETHORA_XMPP_CONFERENCE", "\"conference.xmpp.your-server.com\"")
 ```
+
+`ETHORA_APP_TOKEN` is required for **Email** auth mode (`/users/login-with-email`).
+`ETHORA_USER_JWT` is used by **JWT** auth mode (`/users/client`).
 
 3. Open in Android Studio and run on an emulator (API 26+)
 

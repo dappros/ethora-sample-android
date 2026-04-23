@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ethora.chat.Chat
+import com.ethora.chat.core.ChatService
 import com.ethora.chat.core.config.AppConfig
 import com.ethora.chat.core.config.ChatConfig
 import com.ethora.chat.core.config.ChatHeaderSettingsConfig
@@ -71,6 +72,7 @@ import com.ethora.chat.core.store.MessageStore
 import com.ethora.chat.core.store.ScrollPositionStore
 import com.ethora.chat.core.store.UserStore
 import com.ethora.chat.core.store.LogStore
+import com.ethora.chat.ui.components.LogsView
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.FirebaseApp
@@ -91,6 +93,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        LogStore.startNewSession("sample app start")
         initChatStores()
         PushNotificationManager.initialize(this)
         logSigningCertificateSha1()
@@ -250,15 +253,28 @@ private fun SampleChatApp() {
     var selectedTab by remember { mutableStateOf(0) }
     val context = LocalContext.current
     val session = remember { PlaygroundSessionState.load(context) }
-    val logs = remember { mutableStateListOf<LogLine>() }
     val rooms by RoomStore.rooms.collectAsState()
-    val unreadTotal = remember(rooms) { rooms.sumOf { it.unreadMessages } }
+    // Boolean-only unread indicator — matches the room-row behaviour (dot, no
+    // number). Keeping `hasUnread` rather than a sum keeps the tab badge in
+    // sync with the per-room indicator without chasing count accuracy across
+    // session/device boundaries.
+    val hasUnread = remember(rooms) { rooms.any { it.unreadMessages > 0 } }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
+    // Snapshot of the current ChatConfig — initBeforeLoad fires when the user
+    // opens the Setup tab and configures a JWT. The config is recomputed on
+    // each session mutation so new JWT tokens immediately kick a bootstrap.
+    val chatConfig = session.toChatConfig()
+
     LaunchedEffect(rooms.size) {
-        logs.add(0, LogLine.info("Rooms updated: ${rooms.size}"))
+        LogStore.info("Playground", "Rooms updated: ${rooms.size}", category = "sample-ui")
     }
 
+    // Wrapping the app in EthoraChatProvider triggers the SDK's background
+    // bootstrap (JWT login → /chats/my → XMPP connect → private-store sync →
+    // 20-msg preload per room) BEFORE the user taps into the chat UI, so the
+    // unread dot on the CHAT tab reflects the real server state immediately.
+    com.ethora.chat.EthoraChatProvider(config = chatConfig) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Scaffold(
@@ -274,8 +290,9 @@ private fun SampleChatApp() {
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
                             icon = {
-                                if (unreadTotal > 0) {
-                                    BadgedBox(badge = { Badge { Text(unreadTotal.toString()) } }) {
+                                if (hasUnread) {
+                                    // Badge with no content renders as a solid dot.
+                                    BadgedBox(badge = { Badge() }) {
                                         Icon(Icons.Default.Email, contentDescription = "Chat")
                                     }
                                 } else {
@@ -302,31 +319,30 @@ private fun SampleChatApp() {
                         0 -> SetupTab(
                             context = context,
                             session = session,
-                            logs = logs,
                             onConnect = {
-                                scope.launchConnection(context, session, logs)
+                                scope.launchConnection(context, session)
                             },
                             onDisconnect = {
+                                ChatService.logout.performLogout()
                                 session.isConnected = false
                                 session.lastError = null
-                                UserStore.clear()
-                                logs.add(0, LogLine.warning("Disconnected. Session cleared."))
+                                LogStore.warning("Playground", "Disconnected. Logout performed and session cleared.", category = "sample-ui")
                                 PlaygroundSessionState.save(context, session)
                             }
                         )
                         1 -> ChatTab(session = session)
-                        else -> LogsTab(logs)
+                        else -> LogsTab()
                     }
                 }
             }
         }
     }
+    } // EthoraChatProvider
 }
 
 private fun CoroutineScope.launchConnection(
     context: Context,
-    session: PlaygroundSessionState,
-    logs: MutableList<LogLine>
+    session: PlaygroundSessionState
 ) = launch {
     session.isBusy = true
     session.lastError = null
@@ -339,8 +355,7 @@ private fun CoroutineScope.launchConnection(
         val config = session.toChatConfig()
         if (session.xmppConference != session.normalizedConferenceDomain()) {
             val fixed = session.normalizedConferenceDomain()
-            logs.add(0, LogLine.warning("Fixed XMPP Conference domain: ${session.xmppConference} -> $fixed"))
-            LogStore.warning("Playground", "Normalized XMPP conference domain to $fixed")
+            LogStore.warning("Playground", "Normalized XMPP conference domain to $fixed", category = "sample-ui")
             session.xmppConference = fixed
         }
         ChatStore.setConfig(config)
@@ -348,44 +363,43 @@ private fun CoroutineScope.launchConnection(
         when (session.authMode) {
             AuthMode.JWT_CUSTOM -> {
                 if (session.jwtToken.isBlank()) error("JWT token is required.")
-                logs.add(0, LogLine.info("Auth: login via JWT"))
+                LogStore.info("Playground", "Auth: login via JWT", category = "auth")
                 val response = com.ethora.chat.core.networking.AuthAPIHelper.loginViaJWT(
                     token = session.jwtToken,
                     baseUrl = session.baseUrl
                 ) ?: error("JWT login failed.")
                 UserStore.setUser(response)
-                logs.add(0, LogLine.success("Auth success (JWT): ${response.user.email ?: response.user.username ?: response.user._id}"))
-                LogStore.success("Playground", "HTTP login success (JWT)")
+                LogStore.success("Playground", "HTTP login success (JWT)", category = "auth")
             }
             AuthMode.EMAIL_PASSWORD -> {
                 if (session.email.isBlank() || session.password.isBlank()) {
                     error("Email and password are required.")
                 }
-                logs.add(0, LogLine.info("Auth: login with email"))
+                if (session.appToken.isBlank()) {
+                    error("App token is required for email login. Set ETHORA_APP_TOKEN or fill App token in Setup.")
+                }
+                LogStore.info("Playground", "Auth: login with email", category = "auth")
                 val response = com.ethora.chat.core.networking.AuthAPIHelper.loginWithEmail(
                     email = session.email,
                     password = session.password,
                     baseUrl = session.baseUrl
                 )
                 UserStore.setUser(response)
-                logs.add(0, LogLine.success("Auth success (email): ${response.user.email ?: response.user._id}"))
-                LogStore.success("Playground", "HTTP login success (email)")
+                LogStore.success("Playground", "HTTP login success (email)", category = "auth")
             }
         }
         val xmppUser = UserStore.currentUser.value?.xmppUsername
         val xmppPass = UserStore.currentUser.value?.xmppPassword
         if (xmppUser.isNullOrBlank() || xmppPass.isNullOrBlank()) {
-            LogStore.warning("Playground", "XMPP credentials are empty in login response. Messages will not load.")
-            logs.add(0, LogLine.warning("XMPP credentials missing in response"))
+            LogStore.warning("Playground", "XMPP credentials are empty in login response. Messages will not load.", category = "auth")
         } else {
-            LogStore.info("Playground", "XMPP credentials present for user=$xmppUser")
+            LogStore.info("Playground", "XMPP credentials present for user=$xmppUser", category = "auth")
         }
         session.isConnected = true
         PlaygroundSessionState.save(context, session)
     } catch (e: Exception) {
         session.lastError = e.message ?: "Connection failed"
-        logs.add(0, LogLine.error("Connect failed: ${session.lastError}"))
-        LogStore.error("Playground", "Connect failed: ${session.lastError}")
+        LogStore.error("Playground", "Connect failed: ${session.lastError}", category = "auth")
     } finally {
         session.isBusy = false
     }
@@ -396,7 +410,6 @@ private fun CoroutineScope.launchConnection(
 private fun SetupTab(
     context: Context,
     session: PlaygroundSessionState,
-    logs: MutableList<LogLine>,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -477,16 +490,16 @@ private fun SetupTab(
                         androidx.compose.material3.Button(onClick = {
                             kotlin.runCatching {
                                 jsonValue = PlaygroundSessionState.prettyJson(jsonValue)
-                                logs.add(0, LogLine.success("JSON formatted"))
-                            }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
+                                LogStore.success("Playground", "JSON formatted", category = "sample-ui")
+                            }.onFailure { LogStore.error("Playground", "JSON error: ${it.message}", category = "sample-ui") }
                         }) { Text("Format JSON") }
                         androidx.compose.material3.Button(onClick = {
                             kotlin.runCatching {
                                 session.applyJson(jsonValue)
                                 jsonValue = session.toJson()
-                                logs.add(0, LogLine.success("JSON applied"))
+                                LogStore.success("Playground", "JSON applied", category = "sample-ui")
                                 PlaygroundSessionState.save(context, session)
-                            }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
+                            }.onFailure { LogStore.error("Playground", "JSON error: ${it.message}", category = "sample-ui") }
                         }) { Text("Apply JSON") }
                     }
                 }
@@ -634,46 +647,14 @@ private fun ChatTab(session: PlaygroundSessionState) {
 }
 
 @Composable
-private fun LogsTab(logs: MutableList<LogLine>) {
-    var query by remember { mutableStateOf("") }
-    val sdkLogs by LogStore.logs.collectAsState()
-    val merged = remember(logs.size, sdkLogs.size) {
-        val local = logs.map { "${it.time} [${it.level}] ${it.message}" }
-        val sdk = sdkLogs.map { "${it.timestamp} [${it.type}] [${it.tag}] ${it.message}" }
-        (local + sdk)
-    }
-    val filtered = remember(merged.size, query) {
-        if (query.isBlank()) merged
-        else merged.filter { it.contains(query, ignoreCase = true) }
-    }
-    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        androidx.compose.material3.OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Filter logs") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        androidx.compose.material3.TextButton(onClick = {
-            logs.clear()
-            logs.add(0, LogLine.info("Logs cleared."))
-            LogStore.clear()
-        }) { Text("Clear") }
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(filtered.size) { idx ->
-                val line = filtered[idx]
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
+private fun LogsTab() {
+    LogsView(modifier = Modifier.fillMaxSize())
 }
 
-private enum class AuthMode { EMAIL_PASSWORD, JWT_CUSTOM }
+internal enum class AuthMode { EMAIL_PASSWORD, JWT_CUSTOM }
 
-private class PlaygroundSessionState {
-    var authMode by mutableStateOf(AuthMode.EMAIL_PASSWORD)
+internal class PlaygroundSessionState {
+   var authMode by mutableStateOf(AuthMode.EMAIL_PASSWORD)
     var baseUrl by mutableStateOf("https://api.chat.ethora.com/v1")
     var appToken by mutableStateOf("")
     var appId by mutableStateOf("646cc8dc96d4a4dc8f7b2f2d")
@@ -728,7 +709,13 @@ private class PlaygroundSessionState {
                 host = xmppHost.ifBlank { BuildConfig.ETHORA_XMPP_HOST },
                 conference = normalizedConference.ifBlank { BuildConfig.ETHORA_XMPP_CONFERENCE }
             ),
-            jwtLogin = jwtToken.takeIf { it.isNotBlank() }?.let { JWTLoginConfig(token = it, enabled = true) }
+            jwtLogin = jwtToken.takeIf { it.isNotBlank() }?.let { JWTLoginConfig(token = it, enabled = true) },
+            // Kick off web-parity initBeforeLoad (xmppProvider.tsx L216-332):
+            // JWT /users/client login → /chats/my → XMPP connect →
+            // chatjson private store sync → 20-msg history preload per room.
+            // Runs whenever the sample has a JWT configured, which is the
+            // whole point of the playground's "JWT" auth mode.
+            initBeforeLoad = jwtToken.isNotBlank()
         ).copy(
             chatHeaderSettings = if (resolvedRoom != null) {
                 ChatHeaderSettingsConfig(roomTitleOverrides = mapOf(resolvedRoom to "Playground Room"))
@@ -860,23 +847,5 @@ private class PlaygroundSessionState {
         }
 
         fun prettyJson(raw: String): String = org.json.JSONObject(raw).toString(2)
-    }
-}
-
-private data class LogLine(
-    val time: String,
-    val level: String,
-    val message: String
-) {
-    companion object {
-        fun info(message: String) = LogLine(now(), "info", message)
-        fun success(message: String) = LogLine(now(), "success", message)
-        fun warning(message: String) = LogLine(now(), "warning", message)
-        fun error(message: String) = LogLine(now(), "error", message)
-
-        private fun now(): String {
-            val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-            return sdf.format(java.util.Date())
-        }
     }
 }

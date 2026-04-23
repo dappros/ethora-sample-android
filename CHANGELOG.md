@@ -4,6 +4,12 @@ All notable changes to this package are documented here. For cross-SDK release n
 
 ---
 
+## [Unreleased]
+
+- **Fix:** Restored `ETHORA_APP_TOKEN` BuildConfig/env support in sample app, required for email login flow (`/users/login-with-email`)
+- **Fix:** Added runtime guard in Setup flow to prevent Email login without app token
+- **Docs:** Clarified `ETHORA_APP_TOKEN` (email mode) vs `ETHORA_USER_JWT` (JWT mode)
+
 ## [26.04.21]
 
 Major sample app refresh to align with Android SDK 26.04.21:

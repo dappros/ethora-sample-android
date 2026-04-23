@@ -1,16 +1,12 @@
 [versions]
-# Toolchain — keep aligned with root build.gradle.kts plugin versions
-# and gradle/wrapper/gradle-wrapper.properties (Gradle 8.9).
-agp = "8.5.2"
-kotlin = "1.9.22"
-# Compose Compiler must match the Kotlin version exactly.
-# See https://developer.android.com/jetpack/androidx/releases/compose-kotlin
-composeCompiler = "1.5.8"
+# Toolchain — keep aligned with the root SDK build.
+agp = "8.7.0"
+kotlin = "2.3.0"
 
 # SDK versions
-compileSdk = "35"
+compileSdk = "37"
 minSdk = "26"
-targetSdk = "35"
+targetSdk = "37"
 jvmTarget = "17"
 
 # AndroidX
@@ -36,7 +32,9 @@ compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
