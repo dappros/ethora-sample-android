@@ -25,9 +25,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -331,8 +334,22 @@ private fun SampleChatApp() {
                         .padding(padding)
                         .fillMaxSize()
                 ) {
-                    when (selectedTab) {
-                        0 -> SetupTab(
+                    // Keep-all-tabs-alive dispatch.
+                    //
+                    // Previous `when (selectedTab) { ... }` pattern unmounted
+                    // the inactive tab's subtree on every tab change. For
+                    // the Chat tab that meant EthoraChat's `remember {
+                    // XMPPClientRegistry.getOrCreate(...) }` slot was
+                    // disposed, which tore down delegate wiring. On
+                    // re-entry a new remember slot asked the registry
+                    // again, and we saw multiple clients race. Now the
+                    // XMPPClientRegistry cache returns the same instance
+                    // even across dispose, but we additionally keep each
+                    // tab's composition alive via alpha-gated stacking so
+                    // per-tab UI state (scroll position, expanded cards,
+                    // form field focus) also survives tab switches.
+                    TabSlot(visible = selectedTab == 0) {
+                        SetupTab(
                             context = context,
                             session = session,
                             logs = logs,
@@ -347,8 +364,12 @@ private fun SampleChatApp() {
                                 PlaygroundSessionState.save(context, session)
                             }
                         )
-                        1 -> ChatTab(session = session)
-                        else -> LogsTab(logs)
+                    }
+                    TabSlot(visible = selectedTab == 1) {
+                        ChatTab(session = session)
+                    }
+                    TabSlot(visible = selectedTab == 2) {
+                        LogsTab(logs)
                     }
                 }
             }
@@ -437,122 +458,176 @@ private fun SetupTab(
     var jsonValue by remember { mutableStateOf(session.toJson()) }
     var authExpanded by remember { mutableStateOf(true) }
     var uiExpanded by remember { mutableStateOf(false) }
+    // Outer container handles IME inset lifting; no padding here so the
+    // scroll/column children can own their own padding and the scroll
+    // area can run all the way to the system bars.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(16.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.FilterChip(
+                selected = !jsonMode,
+                onClick = { jsonMode = false },
+                label = { Text("Fields") }
+            )
+            androidx.compose.material3.FilterChip(
+                selected = jsonMode,
+                onClick = { jsonMode = true },
+                label = { Text("JSON") }
+            )
+        }
+        Spacer(Modifier.padding(top = 6.dp))
+        if (!jsonMode) {
+            LazyColumn(
+                // weight(1f) lets the LazyColumn absorb all remaining
+                // vertical space inside the Column above the system-bar
+                // padding. Previously this was fillMaxSize() inside a
+                // Column with a fixed 120.dp bottom padding to leave
+                // room for an absolute-positioned button bar — that bar
+                // frequently clipped long form fields (notably the JWT
+                // token textarea). Moving the buttons into the scroll
+                // as the final item removes the overlap entirely.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    androidx.compose.material3.Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionHeader("Authorization", authExpanded) { authExpanded = !authExpanded }
+                            if (authExpanded) {
+                                SetupFields(session)
+                            }
+                        }
+                    }
+                }
+                item {
+                    androidx.compose.material3.Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionHeader("UI settings", uiExpanded) { uiExpanded = !uiExpanded }
+                            if (uiExpanded) {
+                                UISettingsFields(session)
+                            }
+                        }
+                    }
+                }
+                item { ConnectBar(session, onConnect, onDisconnect) }
+                item { Spacer(Modifier.navigationBarsPadding()) }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = jsonValue,
+                    onValueChange = { jsonValue = it },
+                    label = { Text("Setup JSON") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    minLines = 10
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Button(onClick = {
+                        kotlin.runCatching {
+                            jsonValue = PlaygroundSessionState.prettyJson(jsonValue)
+                            logs.add(0, LogLine.success("JSON formatted"))
+                        }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
+                    }) { Text("Format JSON") }
+                    androidx.compose.material3.Button(onClick = {
+                        kotlin.runCatching {
+                            session.applyJson(jsonValue)
+                            jsonValue = session.toJson()
+                            logs.add(0, LogLine.success("JSON applied"))
+                            PlaygroundSessionState.save(context, session)
+                        }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
+                    }) { Text("Apply JSON") }
+                }
+                Spacer(Modifier.padding(top = 4.dp))
+                ConnectBar(session, onConnect, onDisconnect)
+                Spacer(Modifier.navigationBarsPadding())
+            }
+        }
+    }
+}
+
+/**
+ * Always-composed tab container.
+ *
+ * When `visible == false` the content is still in composition (state
+ * preserved, SDK clients live) but invisible (alpha 0) and intercepts
+ * no pointer events. When `visible == true` the content renders
+ * normally. This replaces the previous
+ * `when (selectedTab) { 0 -> SetupTab(...); 1 -> ChatTab(...) }`
+ * pattern, which disposed inactive tabs and caused the Chat tab's
+ * SDK wiring to tear down on every tab switch.
+ */
+@Composable
+private fun TabSlot(visible: Boolean, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 120.dp)
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.FilterChip(
-                    selected = !jsonMode,
-                    onClick = { jsonMode = false },
-                    label = { Text("Fields") }
-                )
-                androidx.compose.material3.FilterChip(
-                    selected = jsonMode,
-                    onClick = { jsonMode = true },
-                    label = { Text("JSON") }
-                )
-            }
-            Spacer(Modifier.padding(top = 6.dp))
-            if (!jsonMode) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        androidx.compose.material3.Card(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SectionHeader("Authorization", authExpanded) { authExpanded = !authExpanded }
-                                if (authExpanded) {
-                                    SetupFields(session)
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        androidx.compose.material3.Card(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SectionHeader("UI settings", uiExpanded) { uiExpanded = !uiExpanded }
-                                if (uiExpanded) {
-                                    UISettingsFields(session)
-                                }
-                            }
-                        }
+            .graphicsLayer(alpha = if (visible) 1f else 0f)
+            .then(
+                if (visible) Modifier
+                else Modifier.pointerInput(Unit) {
+                    // Swallow taps/drags while invisible so the hidden
+                    // tab can't steal clicks from the active overlay.
+                    awaitPointerEventScope {
+                        while (true) awaitPointerEvent()
                     }
                 }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    androidx.compose.material3.OutlinedTextField(
-                        value = jsonValue,
-                        onValueChange = { jsonValue = it },
-                        label = { Text("Setup JSON") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        minLines = 10
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.material3.Button(onClick = {
-                            kotlin.runCatching {
-                                jsonValue = PlaygroundSessionState.prettyJson(jsonValue)
-                                logs.add(0, LogLine.success("JSON formatted"))
-                            }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
-                        }) { Text("Format JSON") }
-                        androidx.compose.material3.Button(onClick = {
-                            kotlin.runCatching {
-                                session.applyJson(jsonValue)
-                                jsonValue = session.toJson()
-                                logs.add(0, LogLine.success("JSON applied"))
-                                PlaygroundSessionState.save(context, session)
-                            }.onFailure { logs.add(0, LogLine.error("JSON error: ${it.message}")) }
-                        }) { Text("Apply JSON") }
-                    }
-                }
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Button(
-                    onClick = onConnect,
-                    enabled = !session.isBusy
-                ) { Text(if (session.isBusy) "Connecting..." else "Connect") }
-                androidx.compose.material3.OutlinedButton(
-                    onClick = onDisconnect,
-                    enabled = !session.isBusy
-                ) { Text("Disconnect") }
-            }
-            Text(
-                text = "Chat ready: ${if (session.isConnected) "Yes" else "No"}",
-                modifier = Modifier.padding(top = 8.dp)
             )
-            session.lastError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            Spacer(Modifier.navigationBarsPadding())
+    ) {
+        content()
+    }
+}
+
+/**
+ * Connect / Disconnect row + status line. Previously rendered as an
+ * absolute-positioned Column at the bottom of a Box, which overlapped
+ * the scrollable form fields (the JWT textarea was the most common
+ * casualty). Now inlined at the end of the scroll content in both
+ * Fields and JSON modes.
+ */
+@Composable
+private fun ConnectBar(
+    session: PlaygroundSessionState,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.Button(
+                onClick = onConnect,
+                enabled = !session.isBusy
+            ) { Text(if (session.isBusy) "Connecting..." else "Connect") }
+            androidx.compose.material3.OutlinedButton(
+                onClick = onDisconnect,
+                enabled = !session.isBusy
+            ) { Text("Disconnect") }
+        }
+        Text(
+            text = "Chat ready: ${if (session.isConnected) "Yes" else "No"}",
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        session.lastError?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }
