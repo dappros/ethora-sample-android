@@ -202,16 +202,25 @@ dependencies {
     // coordinate the README promises 404s. Tracked SDK-side; revisit
     // once the duplicate-publication warning in the build log is fixed.
     //
-    // tf-dev pin: commit ee454c3 on ethora-sdk-android/tf-dev — builds on
-    // 748f571 (relaxed BIND-result detection + LogStore buffer 2000) by
-    // adding (a) a self-identifying init log so 'Logs' tab instantly
-    // shows whether tf-dev SDK is loaded vs a stale cached AAR; (b)
-    // per-frame receive logging at WebSocketListener.onMessage, before
-    // handleIncomingStanza, to distinguish 'server never replied' vs
-    // 'handleIncomingStanza swallowed it'; (c) onOpen/onClosing/onClosed/
-    // onFailure pushed to LogStore. JitPack rebuilds lazily on first
-    // request — bumping this SHA also forces a fresh Gradle fetch.
-    implementation("com.github.dappros:ethora-sdk-android:ee454c3")
+    // tf-dev pin: commit 73ccb7b on ethora-sdk-android/tf-dev — builds on
+    // ee454c3 (diagnostics + BIND fix + LogStore buffer) with three
+    // follow-up fixes:
+    //
+    //   5645139  publish: drop duplicate root publication so the real
+    //            AAR is served at com.github.dappros:ethora-sdk-android
+    //            instead of a pom-only proxy that clobbered itself.
+    //   0004a7c  chat-ui: XMPPClientRegistry process-wide cache keyed
+    //            by user — eliminates the dispose-remount-race that
+    //            spawned multiple XMPPClient instances and caused
+    //            stream:error not-authorized + 'Broken pipe' storms.
+    //   73ccb7b  xmpp: drop bogus wsUrl xmlns on outgoing <data> —
+    //            aligns with typing/media/receipt code paths which
+    //            already emit <data> without the transport URL stuffed
+    //            into its xmlns attribute.
+    //
+    // Bumping this SHA also invalidates Gradle's cache entry from the
+    // previous pin and forces a fresh fetch from JitPack.
+    implementation("com.github.dappros:ethora-sdk-android:73ccb7b")
     implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
     implementation("com.google.firebase:firebase-common")
     implementation("com.google.firebase:firebase-messaging")
