@@ -72,12 +72,24 @@ val gitBranch: String = runCatching {
         ?: "unknown"
 }.getOrDefault("unknown")
 
-// SimpleDateFormat + Date instead of java.time because the Gradle 8.9
-// Kotlin DSL compilation classpath doesn't always expose java.time
-// (seen on macOS/aarch64 with JBR 17 shipped in Android Studio).
-val buildTimestamp: String = java.text.SimpleDateFormat("yy.MM.dd.HH:mm")
-    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
-    .format(java.util.Date())
+// Sidestep `java.*` package lookups entirely — Gradle's `java` plugin
+// extension object is in scope and shadows the `java` package name in
+// this build script, so even `java.text.*` / `java.util.*` fail to
+// resolve. Use the commit's own author date via `git log`, which is
+// also more meaningful (it pins to the commit, not to the rebuild
+// wall-clock time). Format: YY.MM.DD.HH:mm in UTC.
+val buildTimestamp: String = runCatching {
+    val proc = ProcessBuilder(
+        "git", "log", "-1", "--format=%cd", "--date=format-local:%y.%m.%d.%H:%M"
+    )
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .also { it.environment()["TZ"] = "UTC" }
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
 
 android {
     namespace = "com.ethora.samplechatapp"
