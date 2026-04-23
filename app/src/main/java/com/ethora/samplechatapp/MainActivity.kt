@@ -262,6 +262,22 @@ private fun SampleChatApp() {
         logs.add(0, LogLine.info("Rooms updated: ${rooms.size}"))
     }
 
+    // Surface every ChatConnectionStore transition into the playground
+    // Logs tab so developers can see whether the SDK actually thinks it's
+    // ONLINE. Key gate: ChatInput's canSendMessage check in the SDK only
+    // enables the Send button when this status is ONLINE. If your Send
+    // button is grey even after 'Chat ready: Yes', the transitions logged
+    // here will reveal whether the store is stuck at CONNECTING /
+    // DEGRADED / OFFLINE, or it actually is ONLINE and something else
+    // (e.g. XMPP MUC join) is blocking sends.
+    LaunchedEffect(Unit) {
+        com.ethora.chat.core.store.ConnectionStore.state.collect { state ->
+            val reason = state.reason?.let { " — $it" } ?: ""
+            val recovering = if (state.isRecovering) " (recovering)" else ""
+            logs.add(0, LogLine.info("[ConnectionStore] ${state.status}${reason}${recovering}"))
+        }
+    }
+
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Scaffold(
@@ -629,11 +645,47 @@ private fun ChatTab(session: PlaygroundSessionState) {
         return
     }
     val config = session.toChatConfig()
-    Chat(
-        config = config,
-        roomJID = session.resolvedSingleRoomJid().takeIf { session.useSingleChatMode },
-        modifier = Modifier.fillMaxSize()
-    )
+    val connectionState by com.ethora.chat.core.store.ConnectionStore.state.collectAsState()
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Thin indicator above the SDK's chat UI. The SDK's Send button
+        // is gated on ConnectionStore.state.status == ONLINE, so surfacing
+        // the live status here makes it obvious when the Send button is
+        // disabled because of connection state vs some other reason.
+        ConnectionStatusBanner(connectionState)
+        Chat(
+            config = config,
+            roomJID = session.resolvedSingleRoomJid().takeIf { session.useSingleChatMode },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun ConnectionStatusBanner(state: com.ethora.chat.core.store.ChatConnectionState) {
+    val (bg, fg, label) = when (state.status) {
+        com.ethora.chat.core.store.ChatConnectionStatus.ONLINE ->
+            Triple(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, "ONLINE — send enabled")
+        com.ethora.chat.core.store.ChatConnectionStatus.CONNECTING ->
+            Triple(MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, "CONNECTING…")
+        com.ethora.chat.core.store.ChatConnectionStatus.DEGRADED ->
+            Triple(MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, "DEGRADED")
+        com.ethora.chat.core.store.ChatConnectionStatus.ERROR ->
+            Triple(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, "ERROR")
+        com.ethora.chat.core.store.ChatConnectionStatus.OFFLINE ->
+            Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "OFFLINE — send disabled")
+    }
+    val reason = state.reason?.let { " · $it" } ?: ""
+    androidx.compose.material3.Surface(
+        color = bg,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "[ConnectionStore] $label$reason",
+            color = fg,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        )
+    }
 }
 
 @Composable
