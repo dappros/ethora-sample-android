@@ -53,6 +53,33 @@ fun envOrDefault(vararg keys: String, default: String = ""): String {
     return default
 }
 
+// Git SHA + build time — stamped into the first log line on startup
+// so bug reports and pasted logs carry the exact build they came from.
+val gitShortSha: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+val gitBranch: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+val buildTimestamp: String = java.time.format.DateTimeFormatter
+    .ofPattern("yy.MM.dd.HH:mm")
+    .withZone(java.time.ZoneOffset.UTC)
+    .format(java.time.Instant.now())
+
 android {
     namespace = "com.ethora.samplechatapp"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -70,6 +97,9 @@ android {
             useSupportLibrary = true
         }
 
+        buildConfigField("String", "SAMPLE_GIT_SHA", "\"${gitShortSha}\"")
+        buildConfigField("String", "SAMPLE_GIT_BRANCH", "\"${gitBranch}\"")
+        buildConfigField("String", "SAMPLE_BUILD_TIME", "\"${buildTimestamp}\"")
         buildConfigField("String", "ETHORA_APP_ID", "\"${envOrDefault("ETHORA_APP_ID", "APP_ID", default = "CHANGE_ME_APP_ID")}\"")
         buildConfigField("String", "ETHORA_APP_TOKEN", "\"${envOrDefault("ETHORA_APP_TOKEN", "APP_TOKEN", default = "")}\"")
         buildConfigField("String", "ETHORA_API_BASE_URL", "\"${envOrDefault("ETHORA_API_BASE_URL", "API_BASE_URL", default = "")}\"")
