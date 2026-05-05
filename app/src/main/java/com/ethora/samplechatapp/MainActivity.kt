@@ -70,8 +70,8 @@ import com.ethora.chat.core.push.PushNotificationManager
 import com.ethora.chat.core.store.MessageLoader
 import com.ethora.chat.core.store.MessageStore
 import com.ethora.chat.core.store.ScrollPositionStore
-import com.ethora.chat.core.store.UserStore
 import com.ethora.chat.core.store.LogStore
+import com.ethora.chat.core.store.UserStore
 import com.ethora.chat.ui.components.LogsView
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -81,6 +81,8 @@ import com.google.firebase.messaging.FirebaseMessaging
 import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.ethora.chat.EthoraChatBootstrap
+import androidx.compose.material3.TextButton
 class MainActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isFirebaseAvailable: Boolean = false
@@ -104,10 +106,13 @@ class MainActivity : ComponentActivity() {
         } else {
             Log.w(TAG, "Firebase is not configured (no google-services.json). Skip FCM init.")
         }
-        requestNotificationPermission()
-        if (isFirebaseAvailable) {
-            scheduleFcmTokenFetchOnce()
-        }
+        // Push-related startup is paused while SDK push subscription is off
+        // (see SDK_PUSH_SUBSCRIBE_ENABLED in EthoraChat.kt). Flip both back on
+        // together to re-enable: uncomment these calls AND the SDK const.
+        // requestNotificationPermission()
+        // if (isFirebaseAvailable) {
+        //     scheduleFcmTokenFetchOnce()
+        // }
         handleNotificationIntent(intent)
 
         setContent {
@@ -130,6 +135,7 @@ class MainActivity : ComponentActivity() {
         MessageStore.initialize(messageCache)
         ScrollPositionStore.initialize(context)
         MessageLoader.initialize(LocalStorage(context))
+        // PendingMediaSendQueue is initialized inside EthoraChat/EthoraChatProvider
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
@@ -254,12 +260,9 @@ private fun SampleChatApp() {
     val context = LocalContext.current
     val session = remember { PlaygroundSessionState.load(context) }
     val rooms by RoomStore.rooms.collectAsState()
-    // Boolean-only unread indicator — matches the room-row behaviour (dot, no
-    // number). Keeping `hasUnread` rather than a sum keeps the tab badge in
-    // sync with the per-room indicator without chasing count accuracy across
-    // session/device boundaries.
-    val hasUnread = remember(rooms) { rooms.any { it.unreadMessages > 0 } }
+    val hasUnread by EthoraChatBootstrap.hasUnread().collectAsState(initial = false)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var networkCut by remember { mutableStateOf(false) }
 
     // Snapshot of the current ChatConfig — initBeforeLoad fires when the user
     // opens the Setup tab and configures a JWT. The config is recomputed on
@@ -278,6 +281,38 @@ private fun SampleChatApp() {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Scaffold(
+                topBar = {
+                    Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (networkCut) "Offline (simulated)" else "Online",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (networkCut) MaterialTheme.colorScheme.error
+                                        else MaterialTheme.colorScheme.tertiary
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                scope.launch {
+                                    if (!networkCut) {
+                                        EthoraChatBootstrap.shutdownBlocking()
+                                        LogStore.warning("Playground", "Network cut simulated — XMPP disconnected", category = "sample-ui")
+                                    } else {
+                                        EthoraChatBootstrap.initializeAsync(context, chatConfig)
+                                        LogStore.info("Playground", "Network restore simulated — reconnecting", category = "sample-ui")
+                                    }
+                                    networkCut = !networkCut
+                                }
+                            }) {
+                                Text(if (networkCut) "Restore" else "Cut network")
+                            }
+                        }
+                    }
+                },
                 bottomBar = {
                     NavigationBar {
                         NavigationBarItem(
@@ -291,7 +326,8 @@ private fun SampleChatApp() {
                             onClick = { selectedTab = 1 },
                             icon = {
                                 if (hasUnread) {
-                                    // Badge with no content renders as a solid dot.
+                                    // Badge with no content renders as a solid dot —
+                                    // matches the boolean has-unread API.
                                     BadgedBox(badge = { Badge() }) {
                                         Icon(Icons.Default.Email, contentDescription = "Chat")
                                     }
