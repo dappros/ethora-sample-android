@@ -2,24 +2,25 @@ package com.ethora.samplechatapp
 
 import android.app.Application
 import com.ethora.chat.EthoraChatBootstrap
+import com.ethora.chat.EthoraChatSdk
 
 /**
  * Stores process-level flags so MainActivity recreation does not start a second FCM chain.
  *
- * Also kicks off the SDK's `initBeforeLoad` bootstrap here — earliest possible
- * point in the process. By the time the user sees the Setup tab, the SDK has
- * already (in the background):
- *   • POSTed /users/client with the persisted JWT → UserStore
- *   • fetched /chats/my → RoomStore (cache first, then remote)
- *   • opened the XMPP socket and pulled the chatjson private store
- *   • preloaded 30 messages per room
- * so the CHAT-tab unread dot lights up WITHOUT the user ever tapping Chat.
+ * Initializes the Ethora SDK at the earliest possible point in the process and
+ * kicks off the SDK's `initBeforeLoad` bootstrap if a JWT is already persisted:
+ *   1. `EthoraChatSdk.initialize(this)` — process-singleton DataStore + stores
+ *      setup (must run before any Activity/Composable touches `RoomStore`,
+ *      `MessageStore`, etc.).
+ *   2. `EthoraChatBootstrap.initializeAsync(...)` — opens the XMPP socket,
+ *      runs the catch-up flow (`/users/client`, `/chats/my`, history preload)
+ *      so `RoomStore.rooms` and the unread badge reflect server state without
+ *      the chat tab ever mounting.
  *
- * Matches option Q14=b. The bootstrap is idempotent and key-cached, so the
- * EthoraChatProvider composable wrapping the UI can call it again without
- * re-connecting — that wrapper is still there as a belt-and-suspenders in
- * case the Application.onCreate path is not yet hit (e.g. process death
- * recreation).
+ * Both calls are idempotent. Putting them in `Application.onCreate` is
+ * deliberate — Android may destroy and recreate an Activity while keeping
+ * the process alive, so SDK persistence setup must outlive Activity
+ * lifecycle. See the SDK README's "SDK lifecycle" section.
  */
 class EthoraApplication : Application() {
     companion object {
@@ -29,6 +30,12 @@ class EthoraApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        try {
+            EthoraChatSdk.initialize(this)
+            android.util.Log.d("EthoraApplication", "EthoraChatSdk.initialize() done")
+        } catch (t: Throwable) {
+            android.util.Log.e("EthoraApplication", "SDK initialize failed", t)
+        }
         try {
             val session = PlaygroundSessionState.load(this)
             if (session.jwtToken.isNotBlank()) {

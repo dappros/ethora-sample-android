@@ -62,14 +62,7 @@ import androidx.compose.ui.Alignment
 import com.ethora.chat.core.store.RoomStore
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.ethora.chat.core.persistence.ChatDatabase
-import com.ethora.chat.core.persistence.ChatPersistenceManager
-import com.ethora.chat.core.persistence.LocalStorage
-import com.ethora.chat.core.persistence.MessageCache
 import com.ethora.chat.core.push.PushNotificationManager
-import com.ethora.chat.core.store.MessageLoader
-import com.ethora.chat.core.store.MessageStore
-import com.ethora.chat.core.store.ScrollPositionStore
 import com.ethora.chat.core.store.LogStore
 import com.ethora.chat.core.store.UserStore
 import com.ethora.chat.ui.components.LogsView
@@ -96,8 +89,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         LogStore.startNewSession("sample app start")
-        initChatStores()
-        PushNotificationManager.initialize(this)
+        // SDK persistence + stores init lives in EthoraApplication.onCreate so it
+        // is process-scoped, not Activity-scoped — Activity recreation must not
+        // re-run DataStore setup. See SDK README "SDK lifecycle" section.
         logSigningCertificateSha1()
         isFirebaseAvailable = checkFirebaseInit()
         if (isFirebaseAvailable) {
@@ -123,19 +117,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNotificationIntent(intent)
-    }
-
-    private fun initChatStores() {
-        val context = applicationContext
-        val persistenceManager = ChatPersistenceManager(context)
-        val chatDatabase = ChatDatabase.getDatabase(context)
-        val messageCache = MessageCache(chatDatabase)
-        RoomStore.initialize(persistenceManager)
-        UserStore.initialize(persistenceManager)
-        MessageStore.initialize(messageCache)
-        ScrollPositionStore.initialize(context)
-        MessageLoader.initialize(LocalStorage(context))
-        // PendingMediaSendQueue is initialized inside EthoraChat/EthoraChatProvider
     }
 
     private fun handleNotificationIntent(intent: Intent?) {

@@ -26,9 +26,12 @@ include(":app")
 // Composite build — substitutes the JitPack coordinate with the local SDK source
 // so this app always compiles against the current state of the repo without a
 // publishToMavenLocal step. Remove this block to fall back to mavenLocal() or JitPack.
-includeBuild("..") {
-    dependencySubstitution {
-        substitute(module("com.github.dappros:ethora-sdk-android"))
-            .using(project(":ethora-component"))
-    }
-}
+//
+// Disabled while we're testing the JitPack-published v1.0.33 artifact end-to-end.
+// Re-enable to develop the SDK and sample app together against the live source.
+// includeBuild("..") {
+//     dependencySubstitution {
+//         substitute(module("com.github.dappros:ethora-sdk-android"))
+//             .using(project(":ethora-component"))
+//     }
+// }
