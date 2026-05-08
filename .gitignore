@@ -10,4 +10,11 @@
 .cxx
 local.properties
 .env.ethora
+# Real .env files contain endpoint URLs, app IDs, tokens, and test-user
+# credentials — never commit them. Commit .env.example with placeholders.
+.env
+.env.local
+.env.*.local
+google-services.json
+/app/google-services.json
 /app/build
