@@ -250,6 +250,20 @@ private fun SampleChatApp() {
     // each session mutation so new JWT tokens immediately kick a bootstrap.
     val chatConfig = session.toChatConfig()
 
+    // First-launch build stamp so every pasted log dump identifies the
+    // exact build. Format: "<short sha> @ <YY.MM.DD.HH:mm UTC> on <branch>".
+    // The SDK version is the JitPack coordinate pinned in app/build.gradle.kts.
+    LaunchedEffect(Unit) {
+        logs.add(
+            0,
+            LogLine.info(
+                "sample-chat-app build=${BuildConfig.SAMPLE_GIT_SHA} " +
+                    "@${BuildConfig.SAMPLE_BUILD_TIME}UTC " +
+                    "branch=${BuildConfig.SAMPLE_GIT_BRANCH}"
+            )
+        )
+    }
+
     LaunchedEffect(rooms.size) {
         LogStore.info("Playground", "Rooms updated: ${rooms.size}", category = "sample-ui")
     }
@@ -671,16 +685,28 @@ private fun LogsTab() {
 internal enum class AuthMode { EMAIL_PASSWORD, JWT_CUSTOM }
 
 internal class PlaygroundSessionState {
-   var authMode by mutableStateOf(AuthMode.EMAIL_PASSWORD)
-    var baseUrl by mutableStateOf("https://api.chat.ethora.com/v1")
-    var appToken by mutableStateOf("")
-    var appId by mutableStateOf("646cc8dc96d4a4dc8f7b2f2d")
+    // Default every env-injected field to its BuildConfig value so that
+    // whatever @ethora/setup wrote into .env (ETHORA_APP_ID, ETHORA_API_BASE_URL,
+    // ETHORA_APP_TOKEN, ETHORA_USER_EMAIL/PASSWORD/JWT, ETHORA_XMPP_*) shows up
+    // pre-filled in the Setup tab on first launch. If .env is absent the
+    // defaults fall through to empty strings via envOrDefault() in
+    // build.gradle.kts.
+    //
+    // authMode defaults to JWT if the env has provisioned a user JWT,
+    // otherwise email/password — this lets 'setup + run' produce an
+    // immediately-connectable session when a test user was created.
+    var authMode by mutableStateOf(
+        if (BuildConfig.ETHORA_USER_JWT.isNotBlank()) AuthMode.JWT_CUSTOM else AuthMode.EMAIL_PASSWORD
+    )
+    var baseUrl by mutableStateOf(BuildConfig.ETHORA_API_BASE_URL)
+    var appToken by mutableStateOf(BuildConfig.ETHORA_APP_TOKEN)
+    var appId by mutableStateOf(BuildConfig.ETHORA_APP_ID)
     var jwtToken by mutableStateOf(BuildConfig.ETHORA_USER_JWT)
-    var email by mutableStateOf("colod20205@exweme.com")
-    var password by mutableStateOf("12345678")
-    var xmppWebSocketUrl by mutableStateOf("wss://xmpp.chat.ethora.com/ws")
-    var xmppHost by mutableStateOf("xmpp.chat.ethora.com")
-    var xmppConference by mutableStateOf("conference.xmpp.chat.ethora.com")
+    var email by mutableStateOf(BuildConfig.ETHORA_USER_EMAIL)
+    var password by mutableStateOf(BuildConfig.ETHORA_USER_PASSWORD)
+    var xmppWebSocketUrl by mutableStateOf(BuildConfig.ETHORA_XMPP_SERVER_URL)
+    var xmppHost by mutableStateOf(BuildConfig.ETHORA_XMPP_HOST)
+    var xmppConference by mutableStateOf(BuildConfig.ETHORA_XMPP_CONFERENCE)
     var useSingleChatMode by mutableStateOf(false)
     var singleRoomJid by mutableStateOf(BuildConfig.ETHORA_ROOM_JID)
     var primaryColorHex by mutableStateOf("#5E3FDE")
@@ -844,14 +870,41 @@ internal class PlaygroundSessionState {
     companion object {
         private const val PREFS_NAME = "sdk_playground"
         private const val KEY_JSON = "setup_json"
+        private const val KEY_SCHEMA_VERSION = "schema_version"
+
+        /**
+         * Bump whenever the set or semantics of PlaygroundSessionState
+         * defaults changes — e.g. a new BuildConfig-backed field is added,
+         * an existing default changes, or a field is renamed.
+         *
+         * On load(), if the persisted schema doesn't match the current one,
+         * the saved JSON is discarded and the mutableStateOf defaults
+         * (which now read from BuildConfig.*) take effect. This means a
+         * new build produced by @ethora/setup isn't silently overwritten
+         * by stale JSON from a previous install, while a developer's own
+         * edits still survive app restarts within the same schema.
+         *
+         * History:
+         *   1 — initial (pre-BuildConfig wiring)
+         *   2 — added ETHORA_APP_TOKEN / ETHORA_USER_EMAIL /
+         *       ETHORA_USER_PASSWORD; every default now reads from
+         *       BuildConfig.*
+         */
+        private const val CURRENT_SCHEMA_VERSION = 2
 
         fun load(context: Context): PlaygroundSessionState {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val savedJson = prefs.getString(KEY_JSON, null)
             val state = PlaygroundSessionState()
-            if (!savedJson.isNullOrBlank()) {
-                kotlin.runCatching { state.applyJson(savedJson) }
+            val savedSchema = prefs.getInt(KEY_SCHEMA_VERSION, 0)
+            if (savedSchema == CURRENT_SCHEMA_VERSION) {
+                val savedJson = prefs.getString(KEY_JSON, null)
+                if (!savedJson.isNullOrBlank()) {
+                    kotlin.runCatching { state.applyJson(savedJson) }
+                }
             }
+            // Stale-schema path intentionally falls through to BuildConfig
+            // defaults without touching prefs — the first save() will
+            // rewrite KEY_JSON + KEY_SCHEMA_VERSION together.
             state.xmppConference = state.normalizedConferenceDomain()
             return state
         }
@@ -859,6 +912,7 @@ internal class PlaygroundSessionState {
         fun save(context: Context, state: PlaygroundSessionState) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
+                .putInt(KEY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
                 .putString(KEY_JSON, state.toJson())
                 .apply()
         }

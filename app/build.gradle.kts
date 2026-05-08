@@ -53,6 +53,47 @@ fun envOrDefault(vararg keys: String, default: String = ""): String {
     return default
 }
 
+// Git SHA + build time — stamped into the first log line on startup
+// so bug reports and pasted logs carry the exact build they came from.
+val gitShortSha: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+val gitBranch: String = runCatching {
+    val proc = ProcessBuilder("git", "rev-parse", "--abbrev-ref", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
+// Sidestep `java.*` package lookups entirely — Gradle's `java` plugin
+// extension object is in scope and shadows the `java` package name in
+// this build script, so even `java.text.*` / `java.util.*` fail to
+// resolve. Use the commit's own author date via `git log`, which is
+// also more meaningful (it pins to the commit, not to the rebuild
+// wall-clock time). Format: YY.MM.DD.HH:mm in UTC.
+val buildTimestamp: String = runCatching {
+    val proc = ProcessBuilder(
+        "git", "log", "-1", "--format=%cd", "--date=format-local:%y.%m.%d.%H:%M"
+    )
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .also { it.environment()["TZ"] = "UTC" }
+        .start()
+    proc.inputStream.bufferedReader().readText().trim()
+        .takeIf { proc.waitFor() == 0 && it.isNotBlank() }
+        ?: "unknown"
+}.getOrDefault("unknown")
+
 android {
     namespace = "com.ethora.samplechatapp"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -70,10 +111,15 @@ android {
             useSupportLibrary = true
         }
 
+        buildConfigField("String", "SAMPLE_GIT_SHA", "\"${gitShortSha}\"")
+        buildConfigField("String", "SAMPLE_GIT_BRANCH", "\"${gitBranch}\"")
+        buildConfigField("String", "SAMPLE_BUILD_TIME", "\"${buildTimestamp}\"")
         buildConfigField("String", "ETHORA_APP_ID", "\"${envOrDefault("ETHORA_APP_ID", "APP_ID", default = "CHANGE_ME_APP_ID")}\"")
         buildConfigField("String", "ETHORA_APP_TOKEN", "\"${envOrDefault("ETHORA_APP_TOKEN", "APP_TOKEN", default = "")}\"")
         buildConfigField("String", "ETHORA_API_BASE_URL", "\"${envOrDefault("ETHORA_API_BASE_URL", "API_BASE_URL", default = "")}\"")
         buildConfigField("String", "ETHORA_USER_JWT", "\"${envOrDefault("ETHORA_USER_JWT", "USER_TOKEN", default = "")}\"")
+        buildConfigField("String", "ETHORA_USER_EMAIL", "\"${envOrDefault("ETHORA_USER_EMAIL", "USER_EMAIL", default = "")}\"")
+        buildConfigField("String", "ETHORA_USER_PASSWORD", "\"${envOrDefault("ETHORA_USER_PASSWORD", "USER_PASSWORD", default = "")}\"")
         buildConfigField("String", "ETHORA_ROOM_JID", "\"${envOrDefault("ETHORA_ROOM_JID", "ROOM_JID", default = "")}\"")
         buildConfigField("String", "ETHORA_XMPP_SERVER_URL", "\"${envOrDefault("ETHORA_XMPP_SERVER_URL", "XMPP_SERVER_URL", default = "")}\"")
         buildConfigField("String", "ETHORA_XMPP_HOST", "\"${envOrDefault("ETHORA_XMPP_HOST", "XMPP_HOST", default = "")}\"")
