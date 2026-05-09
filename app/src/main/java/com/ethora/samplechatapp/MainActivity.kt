@@ -254,13 +254,12 @@ private fun SampleChatApp() {
     // exact build. Format: "<short sha> @ <YY.MM.DD.HH:mm UTC> on <branch>".
     // The SDK version is the JitPack coordinate pinned in app/build.gradle.kts.
     LaunchedEffect(Unit) {
-        logs.add(
-            0,
-            LogLine.info(
-                "sample-chat-app build=${BuildConfig.SAMPLE_GIT_SHA} " +
-                    "@${BuildConfig.SAMPLE_BUILD_TIME}UTC " +
-                    "branch=${BuildConfig.SAMPLE_GIT_BRANCH}"
-            )
+        LogStore.info(
+            "Playground",
+            "sample-chat-app build=${BuildConfig.SAMPLE_GIT_SHA} " +
+                "@${BuildConfig.SAMPLE_BUILD_TIME}UTC " +
+                "branch=${BuildConfig.SAMPLE_GIT_BRANCH}",
+            category = "sample-ui"
         )
     }
 
