@@ -99,6 +99,25 @@ same PR. Each flow is ~10–30 lines of YAML; copy
 template. See [`.maestro/README.md`](.maestro/README.md) for authoring
 conventions and how to run flows locally.
 
+### Cross-platform testing overview
+
+This Android sample's Maestro flows are part of a four-platform
+testing stack. The same flow YAMLs (or a near-identical port) run
+against iOS too — selectors resolve by accessibility id strings
+that match across Android `testTag`, iOS `accessibilityIdentifier`,
+and Web `data-testid`.
+
+| Layer 1 (hermetic) | Layer 2 (E2E) |
+|--------------------|----------------|
+| [`ethora-sdk-android`](https://github.com/dappros/ethora-sdk-android) — Compose UI tests | `ethora-sample-android/.maestro/` — 19 flows (this repo) |
+| [`ethora-sdk-swift`](https://github.com/dappros/ethora-sdk-swift) — XCTest + `accessibilityIdentifier` markers | [`ethora-sample-swift/.maestro/`](https://github.com/dappros/ethora-sample-swift) — same 19 flows on iOS Simulator |
+| [`ethora-chat-component`](https://github.com/dappros/ethora-chat-component) — Vitest + RTL + `data-testid` | [`ethora-app-reactjs/tests/e2e/`](https://github.com/dappros/ethora-app-reactjs) — Playwright |
+
+A Maestro `id: "chat_input"` resolves the same intent on Android +
+iOS. A Playwright `[data-testid="chat_input"]` resolves it when
+`<Chat>` mounts in the host. Selectors are 4-repo-coupled — keep
+them in sync.
+
 ## Links
 
 - [Ethora SDK documentation](https://github.com/dappros/ethora-sdk-android)
