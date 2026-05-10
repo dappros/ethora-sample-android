@@ -102,7 +102,11 @@ jobs:
                 .maestro/flows/13-message-edit.yaml \
                 .maestro/flows/14-message-delete.yaml \
                 .maestro/flows/15-message-reaction.yaml \
-                .maestro/flows/16-create-room.yaml
+                .maestro/flows/16-create-room.yaml \
+                .maestro/flows/17-search-rooms.yaml \
+                .maestro/flows/18-multi-message-rapid.yaml \
+                .maestro/flows/19-room-info.yaml \
+                .maestro/flows/20-offline-pending-resend.yaml
 
             # Flow 08: fire the synthetic notification intent BEFORE
             # invoking Maestro, so the launchApp inside the YAML opens
