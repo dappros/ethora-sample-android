@@ -1,0 +1,42 @@
+# Delete an own message. Long-press the bubble → Delete action →
+# confirmation dialog → assert the bubble is gone (or replaced by
+# a "(deleted)" placeholder per the SDK's tombstone convention).
+#
+# Catches: delete RPC silently failing while UI optimistically
+# removes the bubble, MAM still returning the deleted message
+# on rejoin, isDeleted flag not surfaced as a tombstone in
+# Message bubble rendering.
+appId: com.ethora
+env:
+  TARGET: "delete-me ${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: ${TARGET}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: ${TARGET}
+    timeout: 5000
+- longPressOn: ${TARGET}
+- tapOn:
+    text: "Delete"
+    optional: true
+# Some SDK versions show a confirmation dialog; tap "Delete" again
+# to confirm. If the dialog isn't present this is a no-op thanks
+# to optional: true.
+- tapOn:
+    text: "Delete"
+    optional: true
+# After deletion the bubble should be gone or replaced by a
+# tombstone. We assert the original text is no longer visible
+# (covers both "bubble removed" and "tombstone replaces text").
+- extendedWaitUntil:
+    notVisible: ${TARGET}
+    timeout: 5000

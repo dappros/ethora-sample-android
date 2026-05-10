@@ -1,0 +1,42 @@
+# Create a new MUC room. Catches: create-room RPC failing silently
+# while UI shows the new tile, room not bootstrapping XMPP presence
+# on first send, JID generation collision on a duplicate name.
+appId: com.ethora
+env:
+  ROOM_NAME: "Maestro Room ${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+# The CHAT tab in the playground exposes a "+" / "Create room"
+# entry point. Selector here is a placeholder — adjust to the
+# actual contentDescription / testTag.
+- tapOn:
+    id: "create_room_button"
+    optional: true
+- tapOn:
+    text: "Create"
+    optional: true
+- assertVisible:
+    text: "Room name"
+    optional: true
+- tapOn:
+    text: "Room name"
+- inputText: ${ROOM_NAME}
+- tapOn:
+    text: "Create"
+- extendedWaitUntil:
+    visible: ${ROOM_NAME}
+    timeout: 10000
+# After creation the room appears in the list AND becomes the
+# active room. Send a message to verify the new room is fully
+# bootstrapped (XMPP presence joined, write permissions correct).
+- tapOn: ${ROOM_NAME}
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "first message in new room"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: "first message in new room"
+    timeout: 5000

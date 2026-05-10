@@ -86,8 +86,8 @@ jobs:
             adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
                 -d file:///sdcard/Pictures/test-image.png
 
-            # Run flows 01-07 + 09-10 (everything except 08-push-deep-link,
-            # which needs an adb intent fired between launches).
+            # Run flows in order, skipping 08-push-deep-link which needs
+            # an adb intent fired between launches.
             ~/.maestro/bin/maestro test \
                 .maestro/flows/01-login-email.yaml \
                 .maestro/flows/02-login-jwt.yaml \
@@ -97,7 +97,12 @@ jobs:
                 .maestro/flows/06-attach-file.yaml \
                 .maestro/flows/07-reconnect-airplane.yaml \
                 .maestro/flows/09-logout-relogin.yaml \
-                .maestro/flows/10-switch-app.yaml
+                .maestro/flows/10-switch-app.yaml \
+                .maestro/flows/11-login-wrong-password.yaml \
+                .maestro/flows/13-message-edit.yaml \
+                .maestro/flows/14-message-delete.yaml \
+                .maestro/flows/15-message-reaction.yaml \
+                .maestro/flows/16-create-room.yaml
 
             # Flow 08: fire the synthetic notification intent BEFORE
             # invoking Maestro, so the launchApp inside the YAML opens
