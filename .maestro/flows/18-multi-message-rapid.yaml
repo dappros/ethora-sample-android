@@ -1,0 +1,58 @@
+# Rapid-fire send of 5 messages back-to-back. Catches:
+# PendingMediaSendQueue / message-store reorder bugs, optimistic
+# UI dropping bubbles when acks arrive out of order, XMPP rate-
+# limiting collapsing identical timestamps, ChatInput debouncing
+# eating the second tap.
+appId: com.ethora
+env:
+  PREFIX: "rapid-${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "${PREFIX}-1"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "${PREFIX}-2"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "${PREFIX}-3"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "${PREFIX}-4"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: "${PREFIX}-5"
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+# All five must be visible after the last send. Long timeout
+# because rapid-fire opens 5 concurrent send paths and a slow
+# emulator + cold JitPack AAR can take a while to settle.
+- extendedWaitUntil:
+    visible: "${PREFIX}-1"
+    timeout: 20000
+- assertVisible: "${PREFIX}-2"
+- assertVisible: "${PREFIX}-3"
+- assertVisible: "${PREFIX}-4"
+- assertVisible: "${PREFIX}-5"

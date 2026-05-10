@@ -54,17 +54,42 @@ alongside the source it exercises.
 
 ### What runs here
 
-[`.maestro/`](.maestro/) holds 10 [Maestro](https://maestro.mobile.dev/)
-YAML flows that drive a real emulator/device against `chat-qa.ethora.com`:
-
-1. Email login • 2. JWT login • 3. List rooms • 4. Send text •
-5. Receive text • 6. Attach + send file • 7. Reconnect after airplane mode •
-8. Push intent → deep-link • 9. Logout / re-login • 10. Switch chat instance
-
-These run on the sample's CI ([`.github/workflows/maestro.yml`](.github/workflows/maestro.yml))
-on every push, PR, and SDK release tag — they're the gate that catches
+[`.maestro/`](.maestro/) holds 19 [Maestro](https://maestro.mobile.dev/)
+YAML flows that drive a real emulator/device against `chat-qa.ethora.com`.
+They run on the sample's CI
+([`.github/workflows/maestro.yml`](.github/workflows/maestro.yml))
+on every push, PR, and SDK release tag — the gate that catches
 integration regressions like config drift, preset URL breakage, or
 cross-platform feature parity gaps.
+
+| # | Flow | Covers |
+|---|------|--------|
+| 01 | login-email | Happy-path email/password login → "Chat ready" |
+| 02 | login-jwt | Bring-your-own-auth client-flow JWT |
+| 03 | list-rooms | Room list renders post-login with unread counts |
+| 04 | send-text | XMPP send round-trip (the most-broken path) |
+| 05 | receive-text | MAM delivery from a second user |
+| 06 | attach-file | Upload + image bubble |
+| 07 | reconnect-airplane | Disconnect → reconnect → history survives |
+| 08 | push-deep-link | Notification intent → correct room |
+| 09 | logout-relogin | State isolation across sessions |
+| 10 | switch-app | Multi-tenant app switcher |
+| 11 | login-wrong-password | Negative path surfaces error to UI |
+| 13 | message-edit | Long-press → Edit → bubble updates |
+| 14 | message-delete | Long-press → Delete → tombstone or removal |
+| 15 | message-reaction | Long-press → React → emoji + count visible |
+| 16 | create-room | "+" → name → room visible + writable |
+| 17 | search-rooms | RoomListView search filter |
+| 18 | multi-message-rapid | 5 rapid sends, ordering preserved |
+| 19 | room-info | ChatInfoScreen → participants + leave control |
+| 20 | offline-pending-resend | Send while disconnected → message lands after reconnect |
+
+(Flow 12 reserved for typing-indicator — needs a `sendAsBob`-style
+helper for XMPP composing-state.)
+
+Full coverage table with per-flow assertions and the regression
+classes each catches:
+[`.maestro/README.md`](.maestro/README.md#coverage-table).
 
 ### Adding a new flow
 

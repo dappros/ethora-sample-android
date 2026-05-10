@@ -49,12 +49,50 @@ double as living documentation of expected behavior.
     ├── 13-message-edit.yaml          long-press → Edit → save
     ├── 14-message-delete.yaml        long-press → Delete → tombstone
     ├── 15-message-reaction.yaml      long-press → React → emoji
-    └── 16-create-room.yaml           "+" → Create → assert in list
+    ├── 16-create-room.yaml           "+" → Create → assert in list
+    ├── 17-search-rooms.yaml          RoomListView search filter
+    ├── 18-multi-message-rapid.yaml   rapid-fire 5 sends, ordering
+    ├── 19-room-info.yaml             ChatInfoScreen → participants
+    └── 20-offline-pending-resend.yaml disconnect → send → reconnect
 ```
 
 (Flow 12 reserved for typing-indicator — needs a second-user helper
 that pokes XMPP composing-state on bob's behalf, similar in shape to
 `sendAsBob.js` but talking to a typing endpoint.)
+
+## Coverage table
+
+What each flow proves end-to-end against `chat-qa.ethora.com`.
+
+| # | Flow | Asserts | Catches |
+|---|------|---------|---------|
+| 01 | `login-email` | Email + password → `Chat ready: Yes` | Wrong app token, broken `/users/login-with-email` shape, expired refresh tokens |
+| 02 | `login-jwt` | Custom JWT → `/users/client` accepts | `TOKEN_WRONG_TYPE`, missing JWTLoginConfig wiring |
+| 03 | `list-rooms` | After login, room list renders | `GET /chats/my` regression, unread-count desync |
+| 04 | `send-text` | Send round-trips and renders the bubble | XMPP BIND-result match, ConnectionStore stuck CONNECTING, send button gating |
+| 05 | `receive-text` | Bob's REST-sent message arrives via XMPP | MAM subscription missing, XMPPClient duplication |
+| 06 | `attach-file` | Pick from gallery → upload → image bubble | Upload 401 (wrong auth), MIME rejection, chunked-upload UI break |
+| 07 | `reconnect-airplane` | Disconnect → Connect → history survives | XMPP client not torn down, status banner stuck OFFLINE, remount-on-reconnect wipe |
+| 08 | `push-deep-link` | Synthetic notification intent → right room | Intent extras lost, room JID URL-decoded wrong, navigation before bootstrap |
+| 09 | `logout-relogin` | Full logout → re-login same user → state isolated | Persisted state leaking across sessions, DataStore corruption |
+| 10 | `switch-app` | App A → App B in-process | Store not flushed, XMPP client persisting wrong-app JID |
+| 11 | `login-wrong-password` | 401 surfaces as "Login failed", form remains editable | Error suppressed, retry loop, accidental login under stale token |
+| 13 | `message-edit` | Long-press → Edit → bubble updates in place | `editText` prop not flowing, edit calling POST instead of PUT, optimistic-update reconciliation |
+| 14 | `message-delete` | Long-press → Delete → bubble gone or tombstoned | Delete RPC silently failing, MAM still returning deleted, isDeleted not surfaced |
+| 15 | `message-reaction` | Long-press → React → emoji + count visible | Reaction not stored in `Message.reaction`, picker missing presets, count not incrementing |
+| 16 | `create-room` | "+" → Create dialog → new room visible + writable | Create-room RPC silent failure, JID collision on duplicate name, presence not joined for new room |
+| 17 | `search-rooms` | RoomListView SearchBar narrows + restores list | Predicate not case-insensitive, list not re-rendering on query change |
+| 18 | `multi-message-rapid` | 5 back-to-back sends all visible in order | Out-of-order ack reorder, optimistic UI dropping bubbles, ChatInput debounce eating taps |
+| 19 | `room-info` | ChatInfoScreen → participants + leave control | `GET /chats/:jid/details` regression, avatar URL malformed, leave-room hidden |
+| 20 | `offline-pending-resend` | Disconnect → send → reconnect → message lands | Send dropped silently, sendFailed never clearing, retry double-sends, pending bubble stuck |
+
+Several flows depend on **shared selectors** that don't yet exist
+in source (\`id: "chat_input"\`, \`id: "chat_send_button"\`,
+\`id: "rooms_search_input"\`, etc.). Marked \`optional: true\` so
+flows still execute, but they assert nothing useful until those
+\`testTag\`s land in the SDK's Compose tree. Adding semantic
+testTags to the chat-ui composables is the highest-leverage source
+change to unblock these.
 
 ### Why some helpers live outside the flow YAML
 
