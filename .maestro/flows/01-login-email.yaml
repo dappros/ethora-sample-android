@@ -1,0 +1,25 @@
+# Email + password login against the configured server.
+# Catches: wrong app token (TOKEN_WRONG_TYPE), wrong base URL, broken
+# /users/login-with-email response shape, expired refresh tokens.
+appId: com.ethora
+env:
+  EMAIL: ${MAESTRO_TEST_EMAIL:-alice@ethora.com}
+  PASSWORD: ${MAESTRO_TEST_PASSWORD:-TestPass123}
+---
+- launchApp:
+    clearState: true
+- assertVisible: "SETUP"
+- tapOn: "SETUP"
+- assertVisible:
+    text: "Email"
+- tapOn:
+    text: "Email"
+- inputText: ${EMAIL}
+- tapOn:
+    text: "Password"
+- inputText: ${PASSWORD}
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 15000
+- assertNotVisible: "Login failed"

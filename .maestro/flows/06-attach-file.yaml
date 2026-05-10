@@ -1,0 +1,24 @@
+# Attach + send a file. Catches: PendingMediaSendQueue regressions,
+# upload 401 due to wrong auth header, chunked-upload progress UI
+# breakage, MIME-type rejection by the server.
+appId: com.ethora
+---
+- runFlow: 04-send-text.yaml
+- tapOn:
+    id: "chat_attach_button"
+    optional: true
+# Use a fixture file shipped in the APK (assets/test-image.png).
+# TODO: either bundle a small image as a debug asset, or wire
+# Maestro's `pickFile` to pull from device storage seeded by CI.
+- tapOn:
+    text: "Photos"
+    optional: true
+- tapOnFirst:
+    id: "gallery_thumbnail"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "chat_message_image"
+    timeout: 30000
+# Long timeout — JitPack builds + chunked uploads can take a while
+# the first time, especially on a cold emulator.

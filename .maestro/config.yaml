@@ -1,0 +1,9 @@
+# Maestro project config — applies to every flow under .maestro/flows.
+# https://maestro.mobile.dev/cli/configuration
+
+flows:
+  - flows/*.yaml
+
+# `flowsConfig` — per-flow toggles like onFlowStart/onFlowComplete hooks
+# can go here when we have shared setup/teardown to extract. For now
+# each flow handles its own.

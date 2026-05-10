@@ -1,0 +1,29 @@
+# JWT (custom) auth mode — host app provides a pre-signed JWT and the
+# SDK posts it to /users/client. Distinct from email login because it
+# exercises JWTLoginConfig + the bring-your-own-auth path.
+#
+# NOTE: requires a valid client-flow JWT (signed against the app secret
+# with user claims). The user-session token returned by login-with-email
+# is the wrong shape — server returns 400 TOKEN_WRONG_TYPE.
+appId: com.ethora
+env:
+  USER_JWT: ${MAESTRO_TEST_USER_JWT}
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    when:
+      true: ${USER_JWT == null || USER_JWT == ""}
+    commands:
+      - assertVisible: "(skip — no MAESTRO_TEST_USER_JWT set in env)"
+      # Above will fail intentionally — surfaces missing CI secret as a
+      # readable error rather than a silent green pass.
+- tapOn: "SETUP"
+- tapOn: "JWT"
+- tapOn:
+    text: "JWT token"
+- inputText: ${USER_JWT}
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 15000

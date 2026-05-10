@@ -1,0 +1,27 @@
+# Two-device flow: bob sends a message via direct API, alice (in this
+# Maestro session) sees it land in real-time via XMPP push. Catches:
+# missing MAM subscription, XMPPClient duplication (two clients racing
+# for the same JID), reconnect-after-idle dropping the muc presence.
+#
+# Implementation note: we don't drive a second device for now. Instead
+# this flow shells out to a small helper script that posts a message
+# via the REST API as bob, then asserts alice sees it. Maestro's
+# `runScript:` step handles that — see `.maestro/scripts/sendAsBob.js`
+# (TODO: write the helper).
+appId: com.ethora
+env:
+  TEST_MESSAGE: "from bob ${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- runScript:
+    file: ../scripts/sendAsBob.js
+    env:
+      MESSAGE: ${TEST_MESSAGE}
+# Background helper posts the message via /messages endpoint as bob.
+# We then poll the rendered list for the new bubble.
+- extendedWaitUntil:
+    visible: ${TEST_MESSAGE}
+    timeout: 10000

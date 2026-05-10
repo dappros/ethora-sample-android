@@ -1,0 +1,100 @@
+name: Maestro E2E
+
+# Triggers:
+#   - Every push to main / PR (smoke run on a single device).
+#   - Every release tag (full matrix on multiple API levels).
+#   - Manual dispatch from the Actions tab.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#
+#   MAESTRO_TEST_EMAIL          test user email on chat-qa
+#   MAESTRO_TEST_PASSWORD       test user password
+#   MAESTRO_TEST_USER_JWT       client-flow JWT for 02-login-jwt.yaml
+#   MAESTRO_TEST_ROOM_JID       a known room JID alice belongs to
+#   MAESTRO_TEST_APPB_*         second-app credentials for 10-switch-app
+#   ETHORA_API_BASE_URL         e.g. https://api.chat-qa.ethora.com/v1
+#   ETHORA_APP_ID               24-char hex
+#   ETHORA_APP_TOKEN            JWT app token
+#   ETHORA_XMPP_HOST            xmpp.chat-qa.ethora.com
+#   ETHORA_XMPP_CONFERENCE      conference.xmpp.chat-qa.ethora.com
+#   ETHORA_XMPP_SERVER_URL      wss://xmpp.chat-qa.ethora.com/ws
+#
+# All credentials must point at chat-qa, never prod.
+
+jobs:
+  maestro:
+    name: Maestro on emulator (API ${{ matrix.api-level }})
+    runs-on: macos-latest  # macOS runner needed for HAXM/hypervisor.
+    strategy:
+      fail-fast: false
+      matrix:
+        # PR runs hit one API level; release tags hit the full matrix.
+        api-level: ${{ github.event_name == 'release' && fromJson('[26, 30, 34]') || fromJson('[34]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Write .env from secrets
+        run: |
+          cat > .env <<EOF
+          ETHORA_APP_ID=${{ secrets.ETHORA_APP_ID }}
+          ETHORA_APP_TOKEN=${{ secrets.ETHORA_APP_TOKEN }}
+          ETHORA_API_BASE_URL=${{ secrets.ETHORA_API_BASE_URL }}
+          ETHORA_XMPP_SERVER_URL=${{ secrets.ETHORA_XMPP_SERVER_URL }}
+          ETHORA_XMPP_HOST=${{ secrets.ETHORA_XMPP_HOST }}
+          ETHORA_XMPP_CONFERENCE=${{ secrets.ETHORA_XMPP_CONFERENCE }}
+          ETHORA_USER_EMAIL=${{ secrets.MAESTRO_TEST_EMAIL }}
+          ETHORA_USER_PASSWORD=${{ secrets.MAESTRO_TEST_PASSWORD }}
+          EOF
+        # .env is gitignored — it's only on the runner's disk for the job.
+
+      - name: Build sample APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Install Maestro
+        run: curl -fsSL https://get.maestro.mobile.dev | bash
+        # Adds ~/.maestro/bin to PATH on macOS by default.
+
+      - name: Run flows on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_6
+          script: |
+            adb install app/build/outputs/apk/debug/app-debug.apk
+            ~/.maestro/bin/maestro test .maestro/flows
+        env:
+          MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
+          MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
+          MAESTRO_TEST_USER_JWT: ${{ secrets.MAESTRO_TEST_USER_JWT }}
+          MAESTRO_TEST_ROOM_JID: ${{ secrets.MAESTRO_TEST_ROOM_JID }}
+          MAESTRO_TEST_APPB_BASE_URL: ${{ secrets.MAESTRO_TEST_APPB_BASE_URL }}
+          MAESTRO_TEST_APPB_APP_ID: ${{ secrets.MAESTRO_TEST_APPB_APP_ID }}
+          MAESTRO_TEST_APPB_APP_TOKEN: ${{ secrets.MAESTRO_TEST_APPB_APP_TOKEN }}
+          MAESTRO_TEST_APPB_EMAIL: ${{ secrets.MAESTRO_TEST_APPB_EMAIL }}
+          MAESTRO_TEST_APPB_PASSWORD: ${{ secrets.MAESTRO_TEST_APPB_PASSWORD }}
+
+      - name: Upload Maestro recordings on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-recordings-api-${{ matrix.api-level }}
+          path: ~/.maestro/tests/**
+          retention-days: 14
