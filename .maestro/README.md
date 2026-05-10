@@ -21,20 +21,39 @@ double as living documentation of expected behavior.
 .maestro/
 ├── README.md         (you are here)
 ├── config.yaml       project-level Maestro config
+├── assets/           binary fixtures (test images etc.)
+│   └── test-image.png   8×8 PNG used by 06-attach-file
 ├── fixtures/         shared test data (do not commit real credentials)
 │   └── test-users.yaml
+├── scripts/          helpers invoked by flows or by CI before flows
+│   ├── sendAsBob.js     Maestro JS helper — POSTs a message as bob
+│   │                    via REST, used by 05-receive-text
+│   └── sendPushIntent.sh
+│                        adb shell am start helper — invoked by CI
+│                        BEFORE 08-push-deep-link to synthesise a
+│                        notification-tap intent
 └── flows/            one file per scenario, numbered for natural ordering
     ├── 01-login-email.yaml
     ├── 02-login-jwt.yaml
     ├── 03-list-rooms.yaml
     ├── 04-send-text.yaml
-    ├── 05-receive-text.yaml
-    ├── 06-attach-file.yaml
-    ├── 07-reconnect-airplane.yaml
-    ├── 08-push-deep-link.yaml
+    ├── 05-receive-text.yaml      uses scripts/sendAsBob.js
+    ├── 06-attach-file.yaml       uses assets/test-image.png seeded
+    │                              into /sdcard/Pictures/ by CI
+    ├── 07-reconnect-airplane.yaml drives reconnect via the SETUP
+    │                              tab's Disconnect button (no adb)
+    ├── 08-push-deep-link.yaml    CI runs sendPushIntent.sh first
     ├── 09-logout-relogin.yaml
     └── 10-switch-app.yaml
 ```
+
+### Why some helpers live outside the flow YAML
+
+Maestro's JS runtime can drive HTTP (`http.post(...)`) but can't
+shell out — anything that needs `adb shell` (synthetic intents,
+airplane-mode toggles, pushing files into the device gallery) is
+invoked from the CI workflow before/after the flow runs. The flow
+then asserts on the resulting state.
 
 ## Running locally
 
