@@ -1,0 +1,23 @@
+# Push notification → deep-link to the right room. Catches: intent
+# extras not extracted, room JID URL-decoded wrong, navigation fires
+# before EthoraChatProvider has finished bootstrap.
+#
+# We don't actually deliver via FCM here (that needs a real device with
+# Google services + a server-side push). Instead we synthesize the
+# notification intent via adb am start with the same extras the SDK
+# would set, exercising the same handleNotificationIntent path.
+appId: com.ethora
+env:
+  TARGET_ROOM_JID: ${MAESTRO_TEST_ROOM_JID}
+---
+- runFlow: 01-login-email.yaml
+- runScript:
+    file: ../scripts/sendPushIntent.sh
+    env:
+      JID: ${TARGET_ROOM_JID}
+# After the synthetic intent fires, the Chat tab should auto-select
+# the target room (room_jid matches TARGET_ROOM_JID).
+- extendedWaitUntil:
+    visible:
+      id: "chat_active_room"
+    timeout: 5000

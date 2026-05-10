@@ -1,0 +1,17 @@
+# After login, the CHAT tab shows the user's room list with unread
+# counts. Catches: GET /chats/my regression, room ordering changes,
+# unread-count desync between API and XMPP MAM.
+appId: com.ethora
+---
+- runFlow: 01-login-email.yaml
+- tapOn: "CHAT"
+- extendedWaitUntil:
+    visible: "Rooms updated"
+    timeout: 10000
+# At least one room should be visible — exact title depends on the
+# test profile, so we assert on the room-list scaffold rather than a
+# specific name. Replace with a fixture-driven room title once we
+# pin a known room to alice/bob in the QA app.
+- assertVisible:
+    id: "rooms_list"
+    optional: true

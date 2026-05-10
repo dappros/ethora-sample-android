@@ -1,0 +1,27 @@
+# Airplane mode toggle — proves the SDK reconnects cleanly without
+# losing UI state. Catches: XMPP client not torn down on network drop,
+# reconnect storm hammering the server, status banner stuck on OFFLINE.
+appId: com.ethora
+---
+- runFlow: 04-send-text.yaml
+# Use Maestro's runFlow:env feature to call a host shell command that
+# toggles airplane mode via adb. Falls back to manual instruction in
+# the comment if Maestro's CLI permissions are restricted.
+- runScript:
+    file: ../scripts/toggleAirplaneMode.sh
+    env:
+      STATE: "on"
+- extendedWaitUntil:
+    visible: "OFFLINE"
+    timeout: 10000
+- runScript:
+    file: ../scripts/toggleAirplaneMode.sh
+    env:
+      STATE: "off"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 30000
+# Connection should re-establish without the user tapping anything,
+# and the previously-sent message in 04-send-text should still be
+# visible in the conversation (no remount-on-reconnect that wipes
+# scroll position).

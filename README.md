@@ -45,6 +45,35 @@ buildConfigField("String", "ETHORA_XMPP_CONFERENCE", "\"conference.xmpp.your-ser
 - SDK imported via JitPack: `com.github.dappros:ethora-sdk-android:v1.0.19`
 - Java 8+ desugaring enabled (required by the SDK)
 
+## Testing
+
+This repo hosts the **Layer 2** end-to-end test flows for the Ethora
+Android SDK. Layer 1 (hermetic Compose UI tests) lives in
+[`ethora-sdk-android`](https://github.com/dappros/ethora-sdk-android#testing)
+alongside the source it exercises.
+
+### What runs here
+
+[`.maestro/`](.maestro/) holds 10 [Maestro](https://maestro.mobile.dev/)
+YAML flows that drive a real emulator/device against `chat-qa.ethora.com`:
+
+1. Email login • 2. JWT login • 3. List rooms • 4. Send text •
+5. Receive text • 6. Attach + send file • 7. Reconnect after airplane mode •
+8. Push intent → deep-link • 9. Logout / re-login • 10. Switch chat instance
+
+These run on the sample's CI ([`.github/workflows/maestro.yml`](.github/workflows/maestro.yml))
+on every push, PR, and SDK release tag — they're the gate that catches
+integration regressions like config drift, preset URL breakage, or
+cross-platform feature parity gaps.
+
+### Adding a new flow
+
+When a fix lands or a new feature ships, add a Maestro flow in the
+same PR. Each flow is ~10–30 lines of YAML; copy
+[`flows/01-login-email.yaml`](.maestro/flows/01-login-email.yaml) as a
+template. See [`.maestro/README.md`](.maestro/README.md) for authoring
+conventions and how to run flows locally.
+
 ## Links
 
 - [Ethora SDK documentation](https://github.com/dappros/ethora-sdk-android)

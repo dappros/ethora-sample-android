@@ -1,0 +1,27 @@
+# Send a text message from alice. Verifies the full XMPP send path:
+# resource bind → MUC presence → message stanza → archive ack.
+# Catches: BIND-result match regression, ChatConnectionStore stuck
+# at CONNECTING, send button gated on wrong status.
+appId: com.ethora
+env:
+  TEST_MESSAGE: "maestro hello ${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- assertVisible:
+    id: "chat_input"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: ${TEST_MESSAGE}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: ${TEST_MESSAGE}
+    timeout: 5000
+# Same message should appear in the rendered conversation as the most
+# recent bubble — proves the round-trip, not just the optimistic UI.

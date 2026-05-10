@@ -1,0 +1,23 @@
+# Shared test-user fixtures referenced by individual flows.
+#
+# IMPORTANT: do not commit real production credentials here. The
+# test users below should exist on chat-qa.ethora.com only — created
+# via `@ethora/setup` against a QA app, with throwaway passwords.
+#
+# Maestro reads these via `env:` at the top of a flow:
+#   env:
+#     EMAIL: alice@ethora.com
+#     PASSWORD: TestPass123
+# Or imports the file:
+#   onFlowStart:
+#     - runScript: ../fixtures/test-users.yaml
+#
+# When CI runs, these defaults are overridden by repository secrets
+# (see .github/workflows/maestro.yml MAESTRO_TEST_EMAIL / _PASSWORD)
+# so the live values never live in source.
+
+ALICE_EMAIL: alice@ethora.com
+ALICE_PASSWORD: TestPass123
+
+BOB_EMAIL: bob@ethora.com
+BOB_PASSWORD: TestPass123

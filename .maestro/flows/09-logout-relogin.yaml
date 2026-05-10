@@ -1,0 +1,23 @@
+# Full logout → relogin cycle. Catches: persisted state not cleared on
+# logout (next user sees previous user's rooms briefly), DataStore
+# corruption on second-init, ChatXMPPClientOwnership leaking across
+# sessions.
+appId: com.ethora
+---
+- runFlow: 04-send-text.yaml
+# Send a message first, so we have state to clear and verify isn't
+# leaking after logout.
+- tapOn: "SETUP"
+- tapOn: "Disconnect"
+- extendedWaitUntil:
+    visible: "Chat ready: No"
+    timeout: 10000
+# Now log back in as the same user — same credentials, fresh session.
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 15000
+- tapOn: "CHAT"
+# Recently-sent message should still be in history (proven via MAM
+# replay, not session state).
+- assertVisible: "maestro hello"

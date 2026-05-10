@@ -1,0 +1,47 @@
+# Multi-app / app-switcher: switch from app A's user to app B's user
+# (different baseUrl + appId + token + user) without restarting the
+# host activity. Catches: store not flushed between contexts, XMPP
+# client not torn down (mod_ethora rejects with "wrong app name"),
+# Setup-tab default-state schema not bumped.
+#
+# Requires two QA apps in profiles.json: alice → app A, charlie → app B.
+# CI sets MAESTRO_TEST_APPB_* env from secrets.
+appId: com.ethora
+env:
+  APPB_BASE_URL: ${MAESTRO_TEST_APPB_BASE_URL}
+  APPB_APP_ID: ${MAESTRO_TEST_APPB_APP_ID}
+  APPB_APP_TOKEN: ${MAESTRO_TEST_APPB_APP_TOKEN}
+  APPB_EMAIL: ${MAESTRO_TEST_APPB_EMAIL}
+  APPB_PASSWORD: ${MAESTRO_TEST_APPB_PASSWORD}
+---
+- runFlow: 01-login-email.yaml
+- tapOn: "SETUP"
+- tapOn: "Disconnect"
+# Edit the form to point at app B.
+- tapOn:
+    text: "Base URL"
+- eraseText: 100
+- inputText: ${APPB_BASE_URL}
+- tapOn:
+    text: "App ID"
+- eraseText: 100
+- inputText: ${APPB_APP_ID}
+- tapOn:
+    text: "App token"
+- eraseText: 200
+- inputText: ${APPB_APP_TOKEN}
+- tapOn:
+    text: "Email"
+- eraseText: 100
+- inputText: ${APPB_EMAIL}
+- tapOn:
+    text: "Password"
+- eraseText: 100
+- inputText: ${APPB_PASSWORD}
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 15000
+# After switching, the Chat tab should NOT show app A's rooms.
+- tapOn: "CHAT"
+- assertNotVisible: "maestro hello"
