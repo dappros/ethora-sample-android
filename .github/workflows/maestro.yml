@@ -15,10 +15,11 @@ on:
 
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #
-#   MAESTRO_TEST_EMAIL          test user email on chat-qa
-#   MAESTRO_TEST_PASSWORD       test user password
-#   MAESTRO_TEST_USER_JWT       client-flow JWT for 02-login-jwt.yaml
-#   MAESTRO_TEST_ROOM_JID       a known room JID alice belongs to
+#   MAESTRO_TEST_EMAIL          alice's email on chat-qa
+#   MAESTRO_TEST_PASSWORD       alice's password
+#   MAESTRO_TEST_USER_JWT       alice's client-flow JWT (02-login-jwt)
+#   MAESTRO_TEST_ROOM_JID       a MUC room JID alice + bob both belong to
+#   MAESTRO_TEST_BOB_JWT        bob's user-session JWT (sendAsBob.js — 05)
 #   MAESTRO_TEST_APPB_*         second-app credentials for 10-switch-app
 #   ETHORA_API_BASE_URL         e.g. https://api.chat-qa.ethora.com/v1
 #   ETHORA_APP_ID               24-char hex
@@ -79,8 +80,32 @@ jobs:
           profile: pixel_6
           script: |
             adb install app/build/outputs/apk/debug/app-debug.apk
-            ~/.maestro/bin/maestro test .maestro/flows
+
+            # Seed test image into the gallery for flow 06-attach-file.
+            adb push .maestro/assets/test-image.png /sdcard/Pictures/
+            adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
+                -d file:///sdcard/Pictures/test-image.png
+
+            # Run flows 01-07 + 09-10 (everything except 08-push-deep-link,
+            # which needs an adb intent fired between launches).
+            ~/.maestro/bin/maestro test \
+                .maestro/flows/01-login-email.yaml \
+                .maestro/flows/02-login-jwt.yaml \
+                .maestro/flows/03-list-rooms.yaml \
+                .maestro/flows/04-send-text.yaml \
+                .maestro/flows/05-receive-text.yaml \
+                .maestro/flows/06-attach-file.yaml \
+                .maestro/flows/07-reconnect-airplane.yaml \
+                .maestro/flows/09-logout-relogin.yaml \
+                .maestro/flows/10-switch-app.yaml
+
+            # Flow 08: fire the synthetic notification intent BEFORE
+            # invoking Maestro, so the launchApp inside the YAML opens
+            # straight into the deep-linked room.
+            bash .maestro/scripts/sendPushIntent.sh "${MAESTRO_TEST_ROOM_JID}"
+            ~/.maestro/bin/maestro test .maestro/flows/08-push-deep-link.yaml
         env:
+          # Used directly by Maestro `${VAR}` substitution inside flows.
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
           MAESTRO_TEST_USER_JWT: ${{ secrets.MAESTRO_TEST_USER_JWT }}
@@ -90,6 +115,10 @@ jobs:
           MAESTRO_TEST_APPB_APP_TOKEN: ${{ secrets.MAESTRO_TEST_APPB_APP_TOKEN }}
           MAESTRO_TEST_APPB_EMAIL: ${{ secrets.MAESTRO_TEST_APPB_EMAIL }}
           MAESTRO_TEST_APPB_PASSWORD: ${{ secrets.MAESTRO_TEST_APPB_PASSWORD }}
+          # Consumed by `.maestro/scripts/sendAsBob.js` (flow 05).
+          MAESTRO_API_BASE_URL: ${{ secrets.ETHORA_API_BASE_URL }}
+          MAESTRO_APP_TOKEN: ${{ secrets.ETHORA_APP_TOKEN }}
+          MAESTRO_TEST_BOB_JWT: ${{ secrets.MAESTRO_TEST_BOB_JWT }}
 
       - name: Upload Maestro recordings on failure
         if: failure()
