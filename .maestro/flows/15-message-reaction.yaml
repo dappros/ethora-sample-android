@@ -1,0 +1,41 @@
+# React to a message with an emoji. Long-press → reaction picker →
+# pick 👍 → assert the reaction appears on the bubble with count 1.
+#
+# Catches: reaction not stored in Message.reaction map, picker
+# rendering with no preset emoji, count not incrementing on
+# re-react, reaction stripping from MAM history on rejoin.
+appId: com.ethora
+env:
+  TARGET: "react-to-me ${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: ${TARGET}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: ${TARGET}
+    timeout: 5000
+- longPressOn: ${TARGET}
+# The reaction picker layout varies by SDK version. The action
+# sheet may surface a "React" entry or an inline emoji row;
+# accept either by trying both with optional taps.
+- tapOn:
+    text: "React"
+    optional: true
+- tapOn: "👍"
+- extendedWaitUntil:
+    visible: "👍"
+    timeout: 5000
+# A reaction count of 1 should appear next to the emoji on the
+# bubble. Anchor on a substring rather than exact text since
+# Material badges can render "1" alone or "👍 1" together.
+- assertVisible:
+    text: "1"
+    substring: true

@@ -44,8 +44,17 @@ double as living documentation of expected behavior.
     │                              tab's Disconnect button (no adb)
     ├── 08-push-deep-link.yaml    CI runs sendPushIntent.sh first
     ├── 09-logout-relogin.yaml
-    └── 10-switch-app.yaml
+    ├── 10-switch-app.yaml
+    ├── 11-login-wrong-password.yaml  negative login path
+    ├── 13-message-edit.yaml          long-press → Edit → save
+    ├── 14-message-delete.yaml        long-press → Delete → tombstone
+    ├── 15-message-reaction.yaml      long-press → React → emoji
+    └── 16-create-room.yaml           "+" → Create → assert in list
 ```
+
+(Flow 12 reserved for typing-indicator — needs a second-user helper
+that pokes XMPP composing-state on bob's behalf, similar in shape to
+`sendAsBob.js` but talking to a typing endpoint.)
 
 ### Why some helpers live outside the flow YAML
 

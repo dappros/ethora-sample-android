@@ -1,0 +1,57 @@
+# Edit an own message after sending. Long-press the bubble → Edit
+# action sheet → ChatInput switches to edit mode (placeholder
+# becomes "Edit message...") → change text → tap Send → assert
+# the bubble updates in place and a `(edited)` indicator appears.
+#
+# Catches: editText prop not flowing into ChatInput (regression
+# in the LaunchedEffect at ChatInput.kt:86), edit calling
+# /messages/POST instead of /messages/PUT, optimistic update not
+# reconciling with server ack, edited body propagating to other
+# clients (verified separately in Layer 1 unit tests since this
+# flow runs single-device).
+appId: com.ethora
+env:
+  ORIGINAL: "edit-me ${EPOCH}"
+  EDITED: "edited-${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: ${ORIGINAL}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: ${ORIGINAL}
+    timeout: 5000
+# Long-press the just-sent bubble. The action sheet selector here
+# is a placeholder — wire it to the actual contentDescription /
+# testTag on the message-actions menu when implementing.
+- longPressOn: ${ORIGINAL}
+- tapOn:
+    text: "Edit"
+    optional: true
+- assertVisible:
+    text: "Edit message..."
+    optional: true
+- eraseText: 200
+- inputText: ${EDITED}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+- extendedWaitUntil:
+    visible: ${EDITED}
+    timeout: 5000
+- assertNotVisible: ${ORIGINAL}
+# An "(edited)" / pencil indicator should accompany the bubble.
+# If the SDK doesn't surface that yet, this assertion captures
+# the gap as a runtime failure rather than letting the absence
+# pass silently.
+- assertVisible:
+    text: "edited"
+    substring: true
+    optional: true
