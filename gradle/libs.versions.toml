@@ -4,9 +4,16 @@ agp = "8.7.0"
 kotlin = "2.3.0"
 
 # SDK versions
-compileSdk = "37"
+# Pinned to 35 (Android 15) — the latest stable Platform SDK that ships
+# as a base 'android-35' download from SDK Manager. compileSdk = 37 is
+# only available as previews (android-CANARY, android-CinnamonBun) at
+# the time of writing; targeting it forces every developer onto a
+# preview SDK install plus a newer Android Studio that can parse the
+# v4 package.xml schema (canary-number / beta-api-level elements).
+# Bump back to 36/37 base when those become stable downloads.
+compileSdk = "35"
 minSdk = "26"
-targetSdk = "37"
+targetSdk = "35"
 jvmTarget = "17"
 
 # AndroidX
