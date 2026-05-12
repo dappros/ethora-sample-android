@@ -25,12 +25,12 @@ double as living documentation of expected behavior.
 │   └── test-image.png   8×8 PNG used by 06-attach-file
 ├── fixtures/         shared test data (do not commit real credentials)
 │   └── test-users.yaml
-├── scripts/          helpers invoked by flows or by CI before flows
+├── scripts/          helpers invoked by flows or run manually before flows
 │   ├── sendAsBob.js     Maestro JS helper — POSTs a message as bob
 │   │                    via REST, used by 05-receive-text
 │   └── sendPushIntent.sh
-│                        adb shell am start helper — invoked by CI
-│                        BEFORE 08-push-deep-link to synthesise a
+│                        adb shell am start helper — run BEFORE
+│                        08-push-deep-link to synthesise a
 │                        notification-tap intent
 └── flows/            one file per scenario, numbered for natural ordering
     ├── 01-login-email.yaml
@@ -38,11 +38,12 @@ double as living documentation of expected behavior.
     ├── 03-list-rooms.yaml
     ├── 04-send-text.yaml
     ├── 05-receive-text.yaml      uses scripts/sendAsBob.js
-    ├── 06-attach-file.yaml       uses assets/test-image.png seeded
-    │                              into /sdcard/Pictures/ by CI
+    ├── 06-attach-file.yaml       uses assets/test-image.png; before
+    │                              running, push it into the device's
+    │                              Pictures dir via `adb push`
     ├── 07-reconnect-airplane.yaml drives reconnect via the SETUP
     │                              tab's Disconnect button (no adb)
-    ├── 08-push-deep-link.yaml    CI runs sendPushIntent.sh first
+    ├── 08-push-deep-link.yaml    run scripts/sendPushIntent.sh first
     ├── 09-logout-relogin.yaml
     ├── 10-switch-app.yaml
     ├── 11-login-wrong-password.yaml  negative login path
@@ -98,9 +99,11 @@ change to unblock these.
 
 Maestro's JS runtime can drive HTTP (`http.post(...)`) but can't
 shell out — anything that needs `adb shell` (synthetic intents,
-airplane-mode toggles, pushing files into the device gallery) is
-invoked from the CI workflow before/after the flow runs. The flow
-then asserts on the resulting state.
+airplane-mode toggles, pushing files into the device gallery) runs
+as a separate command before/after the flow. The flow then asserts
+on the resulting state. The helper scripts in `scripts/` are the
+canonical place for these — invoke them manually before launching
+the affected flow.
 
 ## Running locally
 
@@ -128,11 +131,34 @@ then asserts on the resulting state.
    maestro test .maestro/flows
    ```
 
-## Running in CI
+## Pointing at a non-default server
 
-`.github/workflows/maestro.yml` runs the full suite on every push and
-on every release tag. CI uses a managed device runner — see the
-workflow for the device matrix and result-upload config.
+The flows read endpoint config from the runtime environment that the
+sample app's Setup tab is configured with — they never hardcode a
+server. To run against a different backend (a self-hosted instance,
+local stack, or a different Cloud app), generate the `.env` for that
+server via `npx @ethora/setup` and rebuild the sample. The flows will
+follow.
+
+This is intentional: tests must not assume any particular server is
+reachable from a developer's machine. The same applies to credentials
+— treat the test users in `fixtures/test-users.yaml` as templates,
+not commitments. Substitute the values your QA instance accepts.
+
+## CI (optional, not provided here)
+
+This repo intentionally does **not** ship a Maestro CI workflow.
+Reasons:
+
+- CI would need to commit to a single server target (credentials in
+  repo secrets), which conflicts with the server-agnostic design
+  above.
+- E2E flows against a live backend are noisy in CI when the backend
+  evolves on its own cadence. The team prefers running them
+  manually against the server relevant to the change being shipped.
+
+If you want CI, fork the repo and add your own workflow targeting
+the server credentials your fork is allowed to use.
 
 ## Authoring a new flow
 

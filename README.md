@@ -55,12 +55,19 @@ alongside the source it exercises.
 ### What runs here
 
 [`.maestro/`](.maestro/) holds 19 [Maestro](https://maestro.mobile.dev/)
-YAML flows that drive a real emulator/device against `chat-qa.ethora.com`.
-They run on the sample's CI
-([`.github/workflows/maestro.yml`](.github/workflows/maestro.yml))
-on every push, PR, and SDK release tag — the gate that catches
-integration regressions like config drift, preset URL breakage, or
-cross-platform feature parity gaps.
+YAML flows that drive a real emulator/device against whichever server
+your `.env` / `BuildConfig` points at. **Run them manually** when
+shipping an SDK update or when triaging a regression that one of the
+flows would catch — the gate against integration regressions like
+config drift, preset URL breakage, or cross-platform feature parity
+gaps.
+
+The flows are **server-agnostic by design**: they read endpoint
+credentials from runtime config, so a developer can point them at
+Ethora Cloud QA, a self-hosted instance, or a local stack without
+modifying the YAMLs. See [`.maestro/README.md`](.maestro/README.md)
+for how to run a single flow, the full suite, and how the `.env` is
+populated.
 
 | # | Flow | Covers |
 |---|------|--------|
@@ -97,7 +104,7 @@ When a fix lands or a new feature ships, add a Maestro flow in the
 same PR. Each flow is ~10–30 lines of YAML; copy
 [`flows/01-login-email.yaml`](.maestro/flows/01-login-email.yaml) as a
 template. See [`.maestro/README.md`](.maestro/README.md) for authoring
-conventions and how to run flows locally.
+conventions and how to run flows locally against your chosen server.
 
 ### Cross-platform testing overview
 
