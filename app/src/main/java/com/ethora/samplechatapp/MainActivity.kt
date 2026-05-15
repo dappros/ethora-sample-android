@@ -748,6 +748,16 @@ internal class PlaygroundSessionState {
         val resolvedRoom = resolvedSingleRoomJid()
         val disableRooms = useSingleChatMode
         val normalizedConference = normalizedConferenceDomain()
+        val resolvedBaseUrl = baseUrl.ifBlank { BuildConfig.ETHORA_API_BASE_URL }
+        val resolvedXmppServerUrl = xmppWebSocketUrl.ifBlank { BuildConfig.ETHORA_XMPP_SERVER_URL }
+        val resolvedXmppHost = xmppHost.ifBlank { BuildConfig.ETHORA_XMPP_HOST }
+        val resolvedConference = normalizedConference.ifBlank { BuildConfig.ETHORA_XMPP_CONFERENCE }
+        val dnsOverrides = effectiveDnsFallbackOverrides(
+            baseUrl = resolvedBaseUrl,
+            xmppServerUrl = resolvedXmppServerUrl,
+            xmppHost = resolvedXmppHost,
+            conferenceHost = resolvedConference
+        )
         return ChatConfig(
             appId = appId.ifBlank { null },
             baseUrl = baseUrl.ifBlank { null },
@@ -772,10 +782,11 @@ internal class PlaygroundSessionState {
                 com.ethora.chat.core.config.BackgroundChatConfig(color = normalizedHex(it, "#FFFFFF"))
             },
             xmppSettings = XMPPSettings(
-                xmppServerUrl = xmppWebSocketUrl.ifBlank { BuildConfig.ETHORA_XMPP_SERVER_URL },
-                host = xmppHost.ifBlank { BuildConfig.ETHORA_XMPP_HOST },
-                conference = normalizedConference.ifBlank { BuildConfig.ETHORA_XMPP_CONFERENCE }
+                xmppServerUrl = resolvedXmppServerUrl,
+                host = resolvedXmppHost,
+                conference = resolvedConference
             ),
+            dnsFallbackOverrides = dnsOverrides.takeIf { it.isNotEmpty() },
             jwtLogin = jwtToken.takeIf { it.isNotBlank() }?.let { JWTLoginConfig(token = it, enabled = true) },
             // Kick off web-parity initBeforeLoad (xmppProvider.tsx L216-332):
             // JWT /users/client login → /chats/my → XMPP connect →
@@ -788,6 +799,61 @@ internal class PlaygroundSessionState {
                 ChatHeaderSettingsConfig(roomTitleOverrides = mapOf(resolvedRoom to "Playground Room"))
             } else ChatHeaderSettingsConfig()
         )
+    }
+
+    // SDK uses these overrides as a fallback when okhttp3.Dns.SYSTEM throws
+    // UnknownHostException — see DnsFallback.kt in the SDK. Both ApiClient
+    // (HTTP) and XMPPWebSocketConnection install the same fallback Dns, so
+    // these entries cover both transports.
+    //
+    // Source resolution (later wins, dedup by host):
+    //   1. ETHORA_DNS_FALLBACK_OVERRIDES env var / .env (comma- or
+    //      semicolon- or newline-separated `host=ip` pairs)
+    //   2. Hard-coded emergency for the *.messenger-dev2.vitall.com dev
+    //      cluster — verified via `dig`, all hosts on this domain currently
+    //      live on 15.156.203.25. The Android emulator's DNS is unreliable
+    //      on some networks, and physical phones resolve fine, so without
+    //      this entry the dev cluster is unreachable from emulator-only
+    //      developer machines while it works for everyone else.
+    private fun effectiveDnsFallbackOverrides(
+        baseUrl: String,
+        xmppServerUrl: String,
+        xmppHost: String,
+        conferenceHost: String
+    ): Map<String, String> {
+        val overrides = envDnsFallbackOverrides().toMutableMap()
+
+        val emergencyIp = "15.156.203.25"
+        val hosts = linkedSetOf<String>()
+        extractHost(baseUrl)?.let { hosts += it }
+        extractHost(xmppServerUrl)?.let { hosts += it }
+        if (xmppHost.isNotBlank()) hosts += xmppHost.trim().lowercase()
+        if (conferenceHost.isNotBlank()) hosts += conferenceHost.trim().lowercase()
+        hosts.filter { it.endsWith(".messenger-dev2.vitall.com") || it == "messenger-dev2.vitall.com" }
+            .forEach { host -> overrides.putIfAbsent(host, emergencyIp) }
+
+        return overrides
+    }
+
+    private fun envDnsFallbackOverrides(): Map<String, String> {
+        val raw = BuildConfig.ETHORA_DNS_FALLBACK_OVERRIDES.trim()
+        if (raw.isEmpty()) return emptyMap()
+        return raw.split(",", ";", "\n")
+            .mapNotNull { entry ->
+                val line = entry.trim()
+                if (line.isEmpty()) return@mapNotNull null
+                val sep = line.indexOf('=').takeIf { it > 0 }
+                    ?: line.indexOf(':').takeIf { it > 0 }
+                    ?: return@mapNotNull null
+                val host = line.substring(0, sep).trim().lowercase()
+                val ip = line.substring(sep + 1).trim()
+                if (host.isEmpty() || ip.isEmpty()) null else host to ip
+            }
+            .toMap()
+    }
+
+    private fun extractHost(url: String): String? {
+        return runCatching { java.net.URI(url.trim()).host?.lowercase() }.getOrNull()
     }
 
     fun resolvedSingleRoomJid(): String? {
