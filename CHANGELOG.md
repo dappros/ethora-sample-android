@@ -4,6 +4,12 @@ All notable changes to this package are documented here. For cross-SDK release n
 
 ---
 
+## [26.05.15]
+
+- **New:** `onChatPaused` / `onChatResumed` buttons in the SETUP tab action row exercise the new `ChatService.lifecycle` API. Both buttons pass `session.resolvedSingleRoomJid()` explicitly so the call works from SETUP — where the `Chat` composable isn't mounted and `RoomStore.currentRoom` is null — matching how a real badge-listener integration would use the explicit-jid overload.
+
+---
+
 ## [26.04.21]
 
 Major sample app refresh to align with Android SDK 26.04.21:

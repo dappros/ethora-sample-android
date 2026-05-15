@@ -551,6 +551,31 @@ private fun SetupTab(
                     enabled = !session.isBusy
                 ) { Text("Disconnect") }
             }
+            // Manual triggers for the new public API: `ChatService.lifecycle`.
+            // Hosts whose tab-swap or overlay flow Compose can't auto-detect
+            // call these on their own visibility events.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                // Pass the configured single-room JID explicitly so the call
+                // works regardless of whether the user has opened the CHAT
+                // tab — sample simulates a host that keeps track of its
+                // listener room and doesn't rely on `RoomStore.currentRoom`.
+                val resolvedJid = session.resolvedSingleRoomJid()
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        com.ethora.chat.core.ChatService.lifecycle.onChatPaused(resolvedJid)
+                        LogStore.info("Playground", "ChatService.lifecycle.onChatPaused(jid=$resolvedJid)", category = "sample-ui")
+                    }
+                ) { Text("onChatPaused") }
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        com.ethora.chat.core.ChatService.lifecycle.onChatResumed(resolvedJid)
+                        LogStore.info("Playground", "ChatService.lifecycle.onChatResumed(jid=$resolvedJid)", category = "sample-ui")
+                    }
+                ) { Text("onChatResumed") }
+            }
             Text(
                 text = "Chat ready: ${if (session.isConnected) "Yes" else "No"}",
                 modifier = Modifier.padding(top = 8.dp)
