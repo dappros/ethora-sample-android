@@ -23,12 +23,3 @@ rootProject.name = "ethora-sample-android"
 
 include(":app")
 
-// Composite build — substitutes the JitPack coordinate with the local SDK source
-// so this app always compiles against the current state of the repo without a
-// publishToMavenLocal step. Remove this block to fall back to mavenLocal() or JitPack.
-includeBuild("..") {
-    dependencySubstitution {
-        substitute(module("com.github.dappros:ethora-sdk-android"))
-            .using(project(":ethora-component"))
-    }
-}

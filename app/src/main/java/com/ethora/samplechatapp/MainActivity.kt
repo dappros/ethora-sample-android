@@ -60,6 +60,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import com.ethora.chat.core.store.RoomStore
+import com.ethora.chat.core.store.MessageStore
+import com.ethora.chat.core.models.Message
+import com.ethora.chat.core.models.Room
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.ethora.chat.core.push.PushNotificationManager
@@ -334,6 +347,12 @@ private fun SampleChatApp() {
                         NavigationBarItem(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
+                            icon = { Icon(Icons.Default.Inbox, contentDescription = "Testing") },
+                            label = { Text("TESTING") }
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
                             icon = { Text("L") },
                             label = { Text("LOGS") }
                         )
@@ -361,6 +380,7 @@ private fun SampleChatApp() {
                             }
                         )
                         1 -> ChatTab(session = session)
+                        2 -> TestingTab(session = session)
                         else -> LogsTab()
                     }
                 }
@@ -704,6 +724,227 @@ private fun ChatTab(session: PlaygroundSessionState) {
 @Composable
 private fun LogsTab() {
     LogsView(modifier = Modifier.fillMaxSize())
+}
+
+@Composable
+private fun TestingTab(session: PlaygroundSessionState) {
+    if (!session.isConnected) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Not connected")
+            Text("Use SETUP tab to connect first.")
+        }
+        return
+    }
+
+    var selectedSubTab by remember { mutableStateOf(0) }
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedSubTab) {
+            Tab(
+                selected = selectedSubTab == 0,
+                onClick = { selectedSubTab = 0 },
+                text = { Text("Unread messages") }
+            )
+        }
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (selectedSubTab) {
+                0 -> UnreadMessagesPane(session = session)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnreadMessagesPane(session: PlaygroundSessionState) {
+    val rooms by RoomStore.rooms.collectAsState()
+    val messagesByRoom by MessageStore.messages.collectAsState()
+    val currentUser by UserStore.currentUser.collectAsState()
+    val meId = currentUser?.id
+
+    if (session.useSingleChatMode) {
+        val targetJid = session.resolvedSingleRoomJid()
+        val room = rooms.firstOrNull { it.jid == targetJid }
+        if (room == null) {
+            EmptyState("Room not found: $targetJid")
+        } else {
+            UnreadMessagesList(
+                room = room,
+                messages = unreadMessagesFor(room, messagesByRoom[room.jid].orEmpty(), meId),
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        return
+    }
+
+    if (rooms.isEmpty()) {
+        EmptyState("No rooms loaded yet.")
+        return
+    }
+
+    var selectedJid by remember(rooms.firstOrNull()?.jid) {
+        mutableStateOf(
+            rooms.firstOrNull { it.unreadMessages > 0 }?.jid ?: rooms.first().jid
+        )
+    }
+    val selectedRoom = rooms.firstOrNull { it.jid == selectedJid } ?: rooms.first()
+    val unread = unreadMessagesFor(selectedRoom, messagesByRoom[selectedRoom.jid].orEmpty(), meId)
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .width(140.dp)
+                .fillMaxHeight()
+        ) {
+            items(rooms, key = { it.jid }) { room ->
+                ChatListRow(
+                    room = room,
+                    selected = room.jid == selectedJid,
+                    onClick = { selectedJid = room.jid }
+                )
+                HorizontalDivider()
+            }
+        }
+        VerticalDivider()
+        UnreadMessagesList(
+            room = selectedRoom,
+            messages = unread,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        )
+    }
+}
+
+@Composable
+private fun ChatListRow(room: Room, selected: Boolean, onClick: () -> Unit) {
+    val bg = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+    Surface(color = bg, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = room.name.ifBlank { room.title.ifBlank { room.jid.substringBefore('@') } },
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+                maxLines = 2
+            )
+            if (room.unreadMessages > 0) {
+                Badge { Text(if (room.unreadCapped) "${room.unreadMessages}+" else room.unreadMessages.toString()) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnreadMessagesList(room: Room, messages: List<Message>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Surface(tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.MarkEmailUnread, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = room.name.ifBlank { room.title.ifBlank { room.jid } },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "${messages.size} unread",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        HorizontalDivider()
+        if (messages.isEmpty()) {
+            EmptyState("No unread messages in this chat.")
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(messages, key = { it.id }) { msg ->
+                    UnreadMessageRow(msg)
+                    HorizontalDivider()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnreadMessageRow(msg: Message) {
+    val sender = listOfNotNull(msg.user.firstName, msg.user.lastName)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .ifBlank { msg.user.email ?: msg.user.xmppUsername ?: msg.user.id }
+    val ts = msg.timestamp ?: msg.date.time
+    val time = remember(ts) {
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(ts))
+    }
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = sender,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.padding(top = 2.dp))
+        Text(
+            text = msg.body,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun unreadMessagesFor(
+    room: Room,
+    messages: List<Message>,
+    currentUserId: String?
+): List<Message> {
+    val lastViewed = room.lastViewedTimestamp ?: 0L
+    val baseline = room.unreadBaselineTimestamp ?: 0L
+    val effective = if (lastViewed > 0L) lastViewed else baseline
+    if (effective <= 0L) return emptyList()
+    return messages.asSequence()
+        .filter { m ->
+            if (m.id == "delimiter-new") return@filter false
+            if (m.pending == true) return@filter false
+            if (m.sendFailed == true) return@filter false
+            if (m.isDeleted == true) return@filter false
+            if (m.isSystemMessage == "true") return@filter false
+            if (currentUserId != null && m.user.id == currentUserId) return@filter false
+            val ts = m.timestamp ?: m.date.time
+            ts > 0L && ts > effective
+        }
+        .sortedBy { it.timestamp ?: it.date.time }
+        .toList()
 }
 
 internal enum class AuthMode { EMAIL_PASSWORD, JWT_CUSTOM }
