@@ -236,7 +236,7 @@ dependencies {
     //   3) maven coordinate — default JitPack tag, override with
     //      `-Pethora.sdkVersion=local-SNAPSHOT` after `./gradlew publishToMavenLocal`
     //      from the SDK root (mavenLocal() is registered in settings.gradle.kts).
-    val sdkVersion = providers.gradleProperty("ethora.sdkVersion").orElse("v1.0.40").get()
+    val sdkVersion = providers.gradleProperty("ethora.sdkVersion").orElse("v1.0.42").get()
     if (localSdkProject != null) {
         implementation(localSdkProject)
         println("sample-chat-app: using local :ethora-component project dependency")

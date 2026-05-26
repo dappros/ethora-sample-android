@@ -672,6 +672,9 @@ private fun UISettingsFields(session: PlaygroundSessionState) {
         SimpleField("Outgoing message bg", session.outgoingMessageColorHex) { session.outgoingMessageColorHex = it }
         SimpleField("Incoming message text", session.incomingMessageTextColorHex) { session.incomingMessageTextColorHex = it }
         SimpleField("Outgoing message text", session.outgoingMessageTextColorHex) { session.outgoingMessageTextColorHex = it }
+        SimpleField("Header color (optional)", session.headerColorHex) { session.headerColorHex = it }
+        SimpleField("Input bar color (optional)", session.inputBarColorHex) { session.inputBarColorHex = it }
+        SimpleField("Input text color (optional)", session.inputTextColorHex) { session.inputTextColorHex = it }
         SimpleField("Chat background (optional)", session.chatBackgroundColorHex) { session.chatBackgroundColorHex = it }
     }
 }
@@ -980,6 +983,9 @@ internal class PlaygroundSessionState {
     var outgoingMessageColorHex by mutableStateOf("#5E3FDE")
     var incomingMessageTextColorHex by mutableStateOf("#111827")
     var outgoingMessageTextColorHex by mutableStateOf("#FFFFFF")
+    var headerColorHex by mutableStateOf("")
+    var inputBarColorHex by mutableStateOf("")
+    var inputTextColorHex by mutableStateOf("")
     var chatBackgroundColorHex by mutableStateOf("")
     var isConnected by mutableStateOf(false)
     var isBusy by mutableStateOf(false)
@@ -1010,7 +1016,10 @@ internal class PlaygroundSessionState {
             chatHeaderSettings = ChatHeaderSettingsConfig(),
             colors = com.ethora.chat.core.config.ChatColors(
                 primary = normalizedHex(primaryColorHex, "#5E3FDE"),
-                secondary = normalizedHex(secondaryColorHex, "#E1E4FE")
+                secondary = normalizedHex(secondaryColorHex, "#E1E4FE"),
+                headerColor = headerColorHex.trim().takeIf { it.isNotEmpty() }?.let { normalizedHex(it, it) },
+                inputBarColor = inputBarColorHex.trim().takeIf { it.isNotEmpty() }?.let { normalizedHex(it, it) },
+                inputTextColor = inputTextColorHex.trim().takeIf { it.isNotEmpty() }?.let { normalizedHex(it, it) }
             ),
             bubleMessage = com.ethora.chat.core.config.MessageBubbleStyle(
                 backgroundMessage = normalizedHex(incomingMessageColorHex, "#F2F4F8"),
@@ -1133,6 +1142,9 @@ internal class PlaygroundSessionState {
                 .put("outgoingMessageColorHex", outgoingMessageColorHex)
                 .put("incomingMessageTextColorHex", incomingMessageTextColorHex)
                 .put("outgoingMessageTextColorHex", outgoingMessageTextColorHex)
+                .put("headerColorHex", headerColorHex)
+                .put("inputBarColorHex", inputBarColorHex)
+                .put("inputTextColorHex", inputTextColorHex)
                 .put("chatBackgroundColorHex", chatBackgroundColorHex))
         return obj.toString(2)
     }
@@ -1172,6 +1184,9 @@ internal class PlaygroundSessionState {
             outgoingMessageColorHex = ui.optString("outgoingMessageColorHex", outgoingMessageColorHex)
             incomingMessageTextColorHex = ui.optString("incomingMessageTextColorHex", incomingMessageTextColorHex)
             outgoingMessageTextColorHex = ui.optString("outgoingMessageTextColorHex", outgoingMessageTextColorHex)
+            headerColorHex = ui.optString("headerColorHex", headerColorHex)
+            inputBarColorHex = ui.optString("inputBarColorHex", inputBarColorHex)
+            inputTextColorHex = ui.optString("inputTextColorHex", inputTextColorHex)
             chatBackgroundColorHex = ui.optString("chatBackgroundColorHex", chatBackgroundColorHex)
         }
     }
