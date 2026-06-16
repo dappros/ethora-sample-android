@@ -1,0 +1,56 @@
+# Disconnect → send (message gets queued or marked send-failed) →
+# reconnect → assert the message either auto-resends or is offered
+# for retry, and ultimately becomes visible in the conversation.
+#
+# The exact contract here depends on whether the SDK queues text
+# messages while offline (PendingMediaSendQueue handles media; for
+# text it may either fail-fast with sendFailed=true or queue
+# silently). This flow asserts the END STATE — message visible
+# after reconnect — without prescribing the intermediate UX.
+#
+# Catches: send dropped silently when offline, sendFailed indicator
+# never clearing on reconnect, retry double-sends the message,
+# pending bubble stuck forever.
+appId: com.ethora
+env:
+  TARGET: "offline-resend-${EPOCH}"
+---
+- runFlow: 03-list-rooms.yaml
+- tapOnFirst:
+    id: "room_row"
+    optional: true
+# Disconnect via the SETUP tab (same approach as 07-reconnect-airplane).
+- tapOn: "SETUP"
+- tapOn: "Disconnect"
+- extendedWaitUntil:
+    visible: "Chat ready: No"
+    timeout: 10000
+# Try to send a message while offline. Depending on SDK behavior:
+#   - sendFailed indicator appears immediately (fail-fast)
+#   - bubble appears with a pending spinner (queued)
+- tapOn: "CHAT"
+- tapOn:
+    id: "chat_input"
+    optional: true
+- inputText: ${TARGET}
+- tapOn:
+    id: "chat_send_button"
+    optional: true
+# Reconnect.
+- tapOn: "SETUP"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 30000
+- tapOn: "CHAT"
+# If the SDK auto-resends on reconnect, the message just appears.
+# If it requires a manual retry tap, give it one through the
+# sendFailed affordance.
+- tapOn:
+    text: "Tap to retry"
+    optional: true
+- extendedWaitUntil:
+    visible: ${TARGET}
+    timeout: 15000
+# The message should NOT be marked send-failed any more.
+- assertNotVisible: "Sending failed"

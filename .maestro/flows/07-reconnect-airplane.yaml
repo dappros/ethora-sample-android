@@ -1,0 +1,31 @@
+# Reconnect smoke — drives the SDK's reconnect path via the app's
+# Disconnect / Connect buttons rather than toggling OS-level network
+# state. Catches: ChatConnectionStore not transitioning back to
+# ONLINE after a clean disconnect, XMPP client not torn down
+# (lingering ghost JID), Setup-tab status stuck on "Chat ready: No",
+# previously-sent message disappearing on reconnect (remount-on-
+# reconnect that wipes scroll position).
+#
+# An OS-level airplane-mode toggle would also exercise socket-drop
+# behaviour, but that needs `adb shell svc wifi disable` from outside
+# Maestro (Maestro's JS runtime can't shell out). If we want that
+# tier of coverage later, the right shape is a separate flow invoked
+# by the CI workflow with a pre-step that toggles wifi via adb, then
+# runs an assertion-only YAML afterwards.
+appId: com.ethora
+---
+- runFlow: 04-send-text.yaml
+- tapOn: "SETUP"
+- tapOn: "Disconnect"
+- extendedWaitUntil:
+    visible: "Chat ready: No"
+    timeout: 10000
+- assertNotVisible: "Chat ready: Yes"
+- tapOn: "Connect"
+- extendedWaitUntil:
+    visible: "Chat ready: Yes"
+    timeout: 30000
+- tapOn: "CHAT"
+# Message from 04-send-text should still be visible (proves history
+# survives the reconnect via MAM, not just session state).
+- assertVisible: "maestro hello"

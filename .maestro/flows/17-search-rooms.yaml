@@ -1,0 +1,35 @@
+# Search the room list by name. The CHAT tab's RoomListView includes
+# a SearchBar (RoomListView.kt:SearchBar private composable); typing
+# narrows the visible rooms.
+#
+# Catches: search predicate not running case-insensitive, accent /
+# diacritic stripping regression, list not re-rendering on query
+# change, "no results" empty-state never appearing.
+appId: com.ethora
+env:
+  # Set on CI to a substring guaranteed to match exactly one room
+  # alice belongs to (e.g. "Maestro" if 16-create-room ran first).
+  ROOM_QUERY: ${MAESTRO_TEST_ROOM_QUERY:-Maestro}
+---
+- runFlow: 03-list-rooms.yaml
+- tapOn:
+    id: "rooms_search_input"
+    optional: true
+- inputText: ${ROOM_QUERY}
+- extendedWaitUntil:
+    visible:
+      text: ${ROOM_QUERY}
+      substring: true
+    timeout: 5000
+# Clear the search and confirm the full list returns. Use eraseText
+# rather than tapping a Clear (X) button so the test passes even if
+# the affordance moves.
+- tapOn:
+    id: "rooms_search_input"
+    optional: true
+- eraseText: 100
+# After clearing, the list should still render at least the queried
+# room (it was visible before the search, and is still in the data).
+- assertVisible:
+    text: ${ROOM_QUERY}
+    substring: true

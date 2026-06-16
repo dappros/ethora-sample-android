@@ -1,0 +1,33 @@
+# Attach + send a file. Catches: PendingMediaSendQueue regressions,
+# upload 401 due to wrong auth header, chunked-upload progress UI
+# breakage, MIME-type rejection by the server.
+#
+# Prerequisite: the test image must already be in the device's
+# gallery. The CI workflow seeds it before this flow runs:
+#
+#     adb push .maestro/assets/test-image.png /sdcard/Pictures/
+#     adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
+#         -d file:///sdcard/Pictures/test-image.png
+#
+# For local runs, do the same two adb commands once after starting
+# the emulator. `.maestro/assets/test-image.png` is an 8×8 PNG
+# bundled with this repo for that purpose.
+appId: com.ethora
+---
+- runFlow: 04-send-text.yaml
+- tapOn:
+    id: "chat_attach_button"
+    optional: true
+- tapOn:
+    text: "Photos"
+    optional: true
+- tapOnFirst:
+    id: "gallery_thumbnail"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "chat_message_image"
+    timeout: 30000
+# Long timeout — chunked uploads can take a while on a cold
+# emulator, especially the first request when JitPack hasn't
+# warmed up the SDK AAR.

@@ -1,0 +1,38 @@
+# Push notification → deep-link to the right room. Catches: intent
+# extras not extracted, room JID URL-decoded wrong, navigation fires
+# before EthoraChatProvider has finished bootstrap.
+#
+# We don't actually deliver via FCM here — that needs a real device
+# with Google services + a server-side push. Instead the **CI
+# workflow** synthesises the notification intent via:
+#
+#     adb shell am start -n com.ethora/com.ethora.samplechatapp.MainActivity \
+#         --es notification_jid <ROOM_JID>
+#
+# before invoking Maestro on this flow (see
+# `.maestro/scripts/sendPushIntent.sh`). The flow assumes the launcher
+# was that intent, so it asserts on the resulting state rather than
+# orchestrating the intent itself (Maestro's JS runtime can't shell
+# out).
+#
+# Required env (set by the CI workflow before invoking Maestro):
+#   MAESTRO_TEST_ROOM_JID  the JID that was passed to `am start`
+appId: com.ethora
+env:
+  TARGET_ROOM_JID: ${MAESTRO_TEST_ROOM_JID}
+---
+- launchApp:
+    # Don't clear state — we want the persisted user / token from a
+    # previous flow's login so EthoraChatProvider bootstraps directly
+    # into the chat tree. (In CI the previous flow's run on the same
+    # emulator instance leaves this state in place.)
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "chat_active_room"
+    timeout: 10000
+# The active-room indicator should show the JID we passed via the
+# intent. Replace the assertion below with a tag-based check once we
+# add an `accessibilityId` to the room title bar that surfaces the
+# selected JID — current text-based assertion is brittle.
+- assertVisible: ${TARGET_ROOM_JID}
